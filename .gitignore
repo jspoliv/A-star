@@ -8,6 +8,7 @@ A-star.*
 main.*
 *.txt
 
-# don't ignore <files>.c 
+# don't ignore 
 !*.c
+!*.h
 
