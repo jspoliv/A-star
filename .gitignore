@@ -1,14 +1,13 @@
-A-star.*
-
-tmp.txt
-main.o
-main.exe
-runtime.txt
-entrada100.txt
-entrada300.txt
-entrada1000.txt
-*.txt
-
+# ignored folders
 bin/
 obj/
 tmp/
+
+# ignored files
+A-star.*
+main.*
+*.txt
+
+# don't ignore <files>.c 
+!*.c
+
