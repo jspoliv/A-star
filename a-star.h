@@ -4,8 +4,6 @@
 
 #define infinity 10000
 #define numNeighbors 4
-#define file1 "entrada100.txt"
-#define file2 "saida.txt"
 
 int reconstruct_path(int came_from[], int current_node, char map_in[], char map_out[]);
 int dist_between(char map_weight);
@@ -13,9 +11,11 @@ void neighbor_nodes(int neighbor[], int current, int n);
 int lowest_f_score(node **openset, int f_score[]);
 int h_cost(int current, int goal, int n);
 void load(FILE *in, char map_in[], char map_out[], node **openset, int closedset[], int came_from[], int g_score[], int f_score[], int *goal, int* start);
+void a_star(char inputfile[], char outputfile[]);
 
-int main(){
-    FILE *in = fopen(file1, "r"), *out;
+
+void a_star(char inputfile[], char outputfile[]){
+    FILE *in = fopen(inputfile, "r"), *out;
     int n, n2, i, start, goal, current, tentative_g_score, neighbor[numNeighbors];
     fscanf(in, "%d", &n);
     n2 = n*n;
@@ -56,8 +56,8 @@ int main(){
     while(openset!=NULL){
         current = lowest_f_score(&openset, f_score);
         if(current == goal){ // goal found, execute and exit code
-            out = fopen(file2, "w");
             printf("Reconstruct start... ");
+            out = fopen(outputfile, "w");
             fprintf(out, "%d", reconstruct_path(came_from, goal, map_in, map_out));
             printf("ended sucessfully.\n\n");
             for(i=0; i<n2; i++){
@@ -79,21 +79,18 @@ int main(){
         for(i=0; i<numNeighbors; i++){
             if(neighbor[i]!=-1){ // neighbor == -1 is outside the map_in[] scope
                 tentative_g_score = g_score[current] + dist_between(map_in[neighbor[i]]);
-                if(closedset[neighbor[i]]==1 && tentative_g_score>=g_score[neighbor[i]]){
+                if(closedset[neighbor[i]]==1 && tentative_g_score>=g_score[neighbor[i]])
                     continue;
-                }
                 if(findNode(&openset, neighbor[i])==NULL || tentative_g_score<g_score[neighbor[i]]){
                     came_from[neighbor[i]] = current;
                     g_score[neighbor[i]] = tentative_g_score;
                     f_score[neighbor[i]] = g_score[neighbor[i]] + h_cost(neighbor[i], goal, n);
-                    if(findNode(&openset, neighbor[i])==NULL) {
+                    if(findNode(&openset, neighbor[i])==NULL)
                         addLast(&openset, neighbor[i]);
-                    }
                 }
             }
         }
     }
-    return 0; // end program
 }
 
 

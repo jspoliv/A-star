@@ -5,21 +5,19 @@ typedef struct Node {
     struct Node *prev, *next;
 } node;
 
-node* findNode(node **head, node_data data) {
-    node *tmp = *head;
-    while(tmp != NULL && tmp->data != data)
-        tmp = tmp->next;
-    return tmp; // returns NULL if *head is NULL or if data is not found
-}
+node* findNode(node **head, node_data data);
+void addLast(node **head, node_data new_data);
+int removeNode(node **head, node_data data);
+void freeLast(node **head);
 
 void addLast(node **head, node_data new_data) {
-    node *new_node = (node*)calloc(1, sizeof(node));
+    node *new_node = (node*)malloc(sizeof(node)); // calloc could be used to initialize node->prev and node->next as NULL
     node *last = *head;
     new_node->data = new_data;
-    new_node->next = NULL; // calloc initializes node->prev and node->next as NULL
+    new_node->next = NULL;
 
     if (*head == NULL) {
-        new_node->prev = NULL; // calloc initializes node->prev and node->next as NULL
+        new_node->prev = NULL;
         *head = new_node;
     }
     else {
@@ -29,6 +27,13 @@ void addLast(node **head, node_data new_data) {
         new_node->prev = last;
     }
     return;
+}
+
+node* findNode(node **head, node_data data) {
+    node *tmp = *head;
+    while(tmp != NULL && tmp->data != data)
+        tmp = tmp->next;
+    return tmp; // returns NULL if *head is NULL or if data is not found
 }
 
 void freeLast(node **head) {
@@ -48,7 +53,6 @@ void freeLast(node **head) {
     }
     return;
 }
-
 
 int removeNode(node **head, node_data data) {
     node *tmp = *head;
@@ -73,4 +77,3 @@ int removeNode(node **head, node_data data) {
     }
     return 0; // data not found
 }
-
