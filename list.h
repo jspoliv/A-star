@@ -5,17 +5,23 @@ typedef struct Node {
     struct Node *prev, *next;
 } node;
 
-node* findNode(node **head, node_data data);
-void addLast(node **head, node_data new_data);
-int removeNode(node **head, node_data data);
-void freeLast(node **head);
+
+void addHead(node **head, node_data new_data) {
+    node *new_node = (node*)malloc(sizeof(node)); // calloc could be used to initialize node->prev and node->next as NULL
+    new_node->prev = NULL;
+    new_node->data = new_data;
+    new_node->next = *head;
+    if(*head != NULL)
+        (*head)->prev = new_node;
+    *head = new_node;
+    return;
+}
 
 void addLast(node **head, node_data new_data) {
     node *new_node = (node*)malloc(sizeof(node)); // calloc could be used to initialize node->prev and node->next as NULL
     node *last = *head;
     new_node->data = new_data;
     new_node->next = NULL;
-
     if (*head == NULL) {
         new_node->prev = NULL;
         *head = new_node;
@@ -61,6 +67,8 @@ int removeNode(node **head, node_data data) {
     if(tmp != NULL) { // data is found
         if(tmp->prev == NULL) { // tmp == head
             *head = tmp->next;
+            if(*head != NULL)
+                (*head)->prev = NULL;
             free(tmp);
         }
         else if(tmp->next != NULL){ // tmp == body

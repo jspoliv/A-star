@@ -72,7 +72,9 @@ void a_star(char inputfile[], char outputfile[]){
             break; // end program, return successful.
         }
 
+        //printf("REMOVE\n");
         removeNode(&openset, current);
+        //printf("REMOVE\n");
         closedset[current]=1;
 
         neighbor_nodes(neighbor, current, n); // fetches position of current neighbors.
@@ -86,7 +88,7 @@ void a_star(char inputfile[], char outputfile[]){
                     g_score[neighbor[i]] = tentative_g_score;
                     f_score[neighbor[i]] = g_score[neighbor[i]] + h_cost(neighbor[i], goal, n);
                     if(findNode(&openset, neighbor[i])==NULL)
-                        addLast(&openset, neighbor[i]);
+                        addHead(&openset, neighbor[i]);
                 }
             }
         }
@@ -118,7 +120,7 @@ void load(FILE *in, char map_in[], char map_out[], node **openset, int closedset
                     break;
                 case 'O':
                     *start = i;
-                    addLast(&(*openset), i); // Mark the start position as open.
+                    addHead(openset, i); // Mark the start position as open.
                     break;
             }
             i++;
