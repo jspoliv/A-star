@@ -11,20 +11,15 @@ void neighbor_nodes(int neighbor[], int current, int n);
 int lowest_f_score(node **openset, int f_score[]);
 int h_cost(int current, int goal, int n);
 void load(FILE *in, char map_in[], char map_out[], node **openset, int closedset[], int came_from[], int g_score[], int f_score[], int *goal, int* start);
-void a_star(char inputfile[], char outputfile[]);
+int a_star(char inputfile[], char outputfile[]);
 
 
-void a_star(char inputfile[], char outputfile[]){
-    FILE *in = fopen(inputfile, "r"), *out;
+int a_star(char inputfile[], char outputfile[]){
+    FILE *in, *out;
     int n, n2, i, start, goal, current, tentative_g_score, neighbor[numNeighbors];
-    fscanf(in, "%d", &n);
-    n2 = n*n;
-    printf("n:%i\nn*n:%i\n\n", n, n2);
-    int *closedset = (int*)calloc(n2, sizeof(int)), *came_from = (int*)malloc(n2*sizeof(int));
-    int *g_score = (int*)malloc(n2*sizeof(int)), *f_score = (int*)malloc(n2*sizeof(int));
-    char *map_in = (char*)malloc(n2*sizeof(char)), *map_out = (char*)malloc(n2*sizeof(char));
+    int *closedset, *came_from, *g_score, *f_score;
+    char *map_in, *map_out;
     node *openset = NULL;
-    printf("Mem alloc\n\n");
 
     /* Variables
     // numNeighbors: number of neighbors, currently a 4-neighborhood.
@@ -46,6 +41,31 @@ void a_star(char inputfile[], char outputfile[]){
     // map_in: original map.
     // map_out: final map containing the cost and the way to the exit.
     */
+    in = fopen(inputfile, "r");
+    if(in == NULL)
+        return -1;
+    fscanf(in, "%d", &n);
+    n2 = n*n;
+    printf("n:%i\nn*n:%i\n\n", n, n2);
+    closedset = (int*)calloc(n2, sizeof(int));
+    if(closedset == NULL)
+        return -2;
+    came_from = (int*)malloc(n2*sizeof(int));
+    if(came_from == NULL)
+        return -3;
+    g_score = (int*)malloc(n2*sizeof(int));
+    if(g_score == NULL)
+        return -4;
+    f_score = (int*)malloc(n2*sizeof(int));
+    if(f_score == NULL)
+        return -5;
+    map_in = (char*)malloc(n2*sizeof(char));
+    if(map_in == NULL)
+        return -6;
+    map_out = (char*)malloc(n2*sizeof(char));
+    if(map_out == NULL)
+        return -7;
+    printf("Mem alloc\n\n");
 
     load(in, map_in, map_out, &openset, closedset, came_from, g_score, f_score, &goal, &start);
 
@@ -93,6 +113,7 @@ void a_star(char inputfile[], char outputfile[]){
             }
         }
     }
+    return 0;
 }
 
 
