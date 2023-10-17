@@ -4,6 +4,17 @@
 
 #define infinity 10000
 #define numNeighbors 4
+#define OUT_OF_BOUNDS -1
+
+enum SET_STATUS {
+    OPEN = 0,
+    CLOSED = 1,
+};
+
+enum SEARCH_RETURN {
+    NOT_FOUND = 0,
+    FOUND = 1,
+};
 
 int reconstruct_path(int came_from[], int current_node, char map_in[], char map_out[]);
 int dist_between(char map_weight);
@@ -43,28 +54,28 @@ int a_star(char inputfile[], char outputfile[]){
     */
     in = fopen(inputfile, "r");
     if(in == NULL)
-        return -1;
+        return -10;
     fscanf(in, "%d", &n);
     n2 = n*n;
     printf("n:%i\nn*n:%i\n\n", n, n2);
     closedset = (int*)calloc(n2, sizeof(int));
     if(closedset == NULL)
-        return -2;
+        return -20;
     came_from = (int*)malloc(n2*sizeof(int));
     if(came_from == NULL)
-        return -3;
+        return -21;
     g_score = (int*)malloc(n2*sizeof(int));
     if(g_score == NULL)
-        return -4;
+        return -22;
     f_score = (int*)malloc(n2*sizeof(int));
     if(f_score == NULL)
-        return -5;
+        return -23;
     map_in = (char*)malloc(n2*sizeof(char));
     if(map_in == NULL)
-        return -6;
+        return -24;
     map_out = (char*)malloc(n2*sizeof(char));
     if(map_out == NULL)
-        return -7;
+        return -25;
     printf("Mem alloc\n\n");
 
     load(in, map_in, map_out, &openset, closedset, came_from, g_score, f_score, &goal, &start);
@@ -78,10 +89,12 @@ int a_star(char inputfile[], char outputfile[]){
         if(current == goal){ // goal found, execute and exit code
             printf("Reconstruct start... ");
             out = fopen(outputfile, "w");
+            if(out == NULL)
+                return -11;
             fprintf(out, "%d", reconstruct_path(came_from, goal, map_in, map_out));
             printf("ended sucessfully.\n\n");
             for(i=0; i<n2; i++){
-                if(((i%n)==0)){
+                if((i%n)==0){
                     fprintf(out, "\n");
                 }
                 fprintf(out, "%c", map_out[i]);
@@ -92,23 +105,22 @@ int a_star(char inputfile[], char outputfile[]){
             break; // end program, return successful.
         }
 
-        //printf("REMOVE\n");
-        removeNode(&openset, current);
-        //printf("REMOVE\n");
-        closedset[current]=1;
+        removeNode(&openset, current); // openset[current] = CLOSED
+        closedset[current] = CLOSED;
 
         neighbor_nodes(neighbor, current, n); // fetches position of current neighbors.
         for(i=0; i<numNeighbors; i++){
-            if(neighbor[i]!=-1){ // neighbor == -1 is outside the map_in[] scope
+            if(neighbor[i] != OUT_OF_BOUNDS){
                 tentative_g_score = g_score[current] + dist_between(map_in[neighbor[i]]);
-                if(closedset[neighbor[i]]==1 && tentative_g_score>=g_score[neighbor[i]])
+                if(closedset[neighbor[i]] == CLOSED && tentative_g_score>=g_score[neighbor[i]])
                     continue;
-                if(findNode(&openset, neighbor[i])==NULL || tentative_g_score<g_score[neighbor[i]]){
+                int memoFind = findNode(&openset, neighbor[i])==NULL ? NOT_FOUND : FOUND;
+                if(memoFind == NOT_FOUND || tentative_g_score<g_score[neighbor[i]]){
                     came_from[neighbor[i]] = current;
                     g_score[neighbor[i]] = tentative_g_score;
                     f_score[neighbor[i]] = g_score[neighbor[i]] + h_cost(neighbor[i], goal, n);
-                    if(findNode(&openset, neighbor[i])==NULL)
-                        addHead(&openset, neighbor[i]);
+                    if(memoFind == NOT_FOUND)
+                        addHead(&openset, neighbor[i]); // openset[position] = OPEN
                 }
             }
         }
@@ -122,10 +134,11 @@ int a_star(char inputfile[], char outputfile[]){
 //
 // The function starts all used variables.
 */
-void load(FILE *in, char map_in[], char map_out[], node **openset, int closedset[], int came_from[], int g_score[], int f_score[], int *goal, int* start){
+void load(FILE *in, char map_in[], char map_out[], node **openset, int closedset[],
+          int came_from[], int g_score[], int f_score[], int *goal, int* start){
     printf("load start... ");
     int i=0;
-    while(!feof(in)){// Load map.
+    while(!feof(in)){ // Load map.
         fscanf(in, "%c", &map_in[i]);
         if(map_in[i]=='X' || map_in[i]=='O' || map_in[i]=='V' || map_in[i]=='W' || map_in[i]=='#'){ // Accepted char set
             // Set other maps.
@@ -146,7 +159,7 @@ void load(FILE *in, char map_in[], char map_out[], node **openset, int closedset
             }
             i++;
         }
-    }// End Load Map.
+    } // End Load Map.
     fclose(in);
     printf("ended successfully.\n\n");
     return;
