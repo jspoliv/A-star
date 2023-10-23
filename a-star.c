@@ -8,15 +8,17 @@ static int dist_between(char map_weight);
 static void neighbor_nodes(int neighbor[], int current, int n);
 static int lowest_f_score(node **openset, int f_score[]);
 static int h_cost(int current, int goal, int n);
-static void load(FILE *in, char map_in[], char map_out[], node **openset, int closedset[], int came_from[], int g_score[], int f_score[], int *goal, int* start);
+static int load(FILE *in, char map_in[], char map_out[], node **openset, int closedset[], int came_from[],
+                 int g_score[], int f_score[], int *goal, int* start, int n2);
 
 
 int a_star(char inputfile[], char outputfile[]){
     FILE *in, *out;
-    int n, n2, i, start, goal, current, tentative_g_score, neighbor[numNeighbors];
+    int n, n2, i, start, goal, current, tentative_g_score, neighbor[numNeighbors], memoFind;
     int *closedset, *came_from, *g_score, *f_score;
     char *map_in, *map_out;
     node *openset = NULL;
+    err_e err_no = 0;
 
     /* Variables
     // numNeighbors: number of neighbors, currently a 4-neighborhood.
@@ -40,31 +42,36 @@ int a_star(char inputfile[], char outputfile[]){
     */
     in = fopen(inputfile, "r");
     if(in == NULL)
-        return -10;
+        return FILE_R_ERR;
     fscanf(in, "%d", &n);
+    if(n < 2)
+        return INPUT_ERR;
     n2 = n*n;
     printf("n:%i\nn*n:%i\n\n", n, n2);
     closedset = (int*)malloc(n2*sizeof(int));
     if(closedset == NULL)
-        return -20;
+        return ALLOC_ERR;
     came_from = (int*)malloc(n2*sizeof(int));
     if(came_from == NULL)
-        return -21;
+        return ALLOC_ERR;
     g_score = (int*)malloc(n2*sizeof(int));
     if(g_score == NULL)
-        return -22;
+        return ALLOC_ERR;
     f_score = (int*)malloc(n2*sizeof(int));
     if(f_score == NULL)
-        return -23;
+        return ALLOC_ERR;
     map_in = (char*)malloc(n2*sizeof(char));
     if(map_in == NULL)
-        return -24;
+        return ALLOC_ERR;
     map_out = (char*)malloc(n2*sizeof(char));
     if(map_out == NULL)
-        return -25;
+        return ALLOC_ERR;
     printf("Mem alloc\n\n");
 
-    load(in, map_in, map_out, &openset, closedset, came_from, g_score, f_score, &goal, &start);
+    err_no = load(in, map_in, map_out, &openset, closedset, came_from, g_score, f_score, &goal, &start, n2);
+
+    if(err_no < 0)
+        return err_no;
 
     g_score[start] = 0;
     f_score[start] = g_score[start] + h_cost(start, goal, n);
@@ -76,7 +83,7 @@ int a_star(char inputfile[], char outputfile[]){
             printf("Reconstruct start... ");
             out = fopen(outputfile, "w");
             if(out == NULL)
-                return -11;
+                return FILE_W_ERR;
             fprintf(out, "%d", reconstruct_path(came_from, goal, map_in, map_out));
             printf("ended sucessfully.\n\n");
             for(i=0; i<n2; i++){
@@ -100,13 +107,14 @@ int a_star(char inputfile[], char outputfile[]){
                 tentative_g_score = g_score[current] + dist_between(map_in[neighbor[i]]);
                 if(closedset[neighbor[i]] == CLOSED && tentative_g_score>=g_score[neighbor[i]])
                     continue;
-                int memoFind = findNode(&openset, neighbor[i])==NULL ? NOT_FOUND : FOUND;
+                memoFind = findNode(&openset, neighbor[i])==NULL ? NOT_FOUND : FOUND;
                 if(memoFind == NOT_FOUND || tentative_g_score<g_score[neighbor[i]]){
                     came_from[neighbor[i]] = current;
                     g_score[neighbor[i]] = tentative_g_score;
                     f_score[neighbor[i]] = g_score[neighbor[i]] + h_cost(neighbor[i], goal, n);
-                    if(memoFind == NOT_FOUND)
-                        addHead(&openset, neighbor[i]); // openset[position] = OPEN
+                    if(memoFind == NOT_FOUND && addHead(&openset, neighbor[i]) == NULL){
+                        return ALLOC_ERR; // AddHead failed to add openset[position] = OPEN
+                    }
                 }
             }
         }
@@ -120,11 +128,13 @@ int a_star(char inputfile[], char outputfile[]){
 //
 // The function starts all used variables.
 */
-static void load(FILE *in, char map_in[], char map_out[], node **openset, int closedset[],
-          int came_from[], int g_score[], int f_score[], int *goal, int* start){
+static int load(FILE *in, char map_in[], char map_out[], node **openset, int closedset[],
+          int came_from[], int g_score[], int f_score[], int *goal, int *start, int n2){
     printf("load start... ");
     int i=0;
     while(!feof(in)){ // Load map.
+        if(i > n2)
+            return INPUT_ERR;
         fscanf(in, "%c", &map_in[i]);
         if(map_in[i]=='X' || map_in[i]=='O' || map_in[i]=='V' || map_in[i]=='W' || map_in[i]=='#'){ // Accepted char set
             // Set other maps.
@@ -140,15 +150,18 @@ static void load(FILE *in, char map_in[], char map_out[], node **openset, int cl
                     break;
                 case 'O':
                     *start = i;
-                    addHead(openset, i); // Mark the start position as open.
+                    if(addHead(openset, i) == NULL) // AddHead marks the start position as open.
+                        return ALLOC_ERR;
                     break;
             }
             i++;
         }
     } // End Load Map.
+    if(i < n2)
+        return INPUT_ERR;
     fclose(in);
     printf("ended successfully.\n\n");
-    return;
+    return 0;
 } // Function end.
 
 
@@ -228,5 +241,22 @@ static int lowest_f_score(node **openset, int f_score[]){ // position of the low
     }
     // printf(" %i", f_score[lowest]);
     return lowest;
+}
+
+void printerr(err_e err_no){
+    switch(err_no){
+        case FILE_R_ERR:
+            printf("\n\n Error: Input file not found.\n");
+            break;
+        case FILE_W_ERR:
+            printf("\n\n Error: Output file could not be written.\n");
+            break;
+        case INPUT_ERR:
+            printf("\n\n Error: Invalid input.\n");
+            break;
+        case ALLOC_ERR:
+            printf("\n\n Error: memory allocation failed.\n");
+            break;
+    }
 }
 
