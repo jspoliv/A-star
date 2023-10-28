@@ -11,6 +11,7 @@ enum STATUS {
     FOUND = 1,
     OUT_OF_BOUNDS = -1,
     NOT_SET = -1,
+    INVALID_INPUT = -1,
 };
 
 typedef enum ASTAR_ERR {

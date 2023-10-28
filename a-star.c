@@ -14,7 +14,7 @@ static int load(FILE *in, char map_in[], char map_out[], node **openset, int clo
 
 int a_star(char inputfile[], char outputfile[]){
     FILE *in, *out;
-    int n, n2, i, start, goal, current, tentative_g_score, neighbor[numNeighbors], memoFind;
+    int n, n2, i, start, goal, current, tentative_g_score, neighbor[numNeighbors], memo;
     int *closedset, *came_from, *g_score, *f_score;
     char *map_in, *map_out;
     node *openset = NULL;
@@ -84,7 +84,8 @@ int a_star(char inputfile[], char outputfile[]){
             out = fopen(outputfile, "w");
             if(out == NULL)
                 return FILE_W_ERR;
-            fprintf(out, "%d", reconstruct_path(came_from, goal, map_in, map_out));
+            memo = reconstruct_path(came_from, goal, map_in, map_out);
+            fprintf(out, "%d", memo);
             printf("ended sucessfully.\n\n");
             for(i=0; i<n2; i++){
                 if((i%n)==0){
@@ -94,6 +95,7 @@ int a_star(char inputfile[], char outputfile[]){
             }
             fclose(out);
             printf("Pathfinding was successful.\n");
+            printf("Path cost: %d\n", memo);
             // system("pause");
             break; // end program, return successful.
         }
@@ -107,13 +109,13 @@ int a_star(char inputfile[], char outputfile[]){
                 tentative_g_score = g_score[current] + dist_between(map_in[neighbor[i]]);
                 if(closedset[neighbor[i]] == CLOSED && tentative_g_score>=g_score[neighbor[i]])
                     continue;
-                memoFind = findNode(&openset, neighbor[i])==NULL ? NOT_FOUND : FOUND;
-                if(memoFind == NOT_FOUND || tentative_g_score<g_score[neighbor[i]]){
+                memo = findNode(&openset, neighbor[i])==NULL ? NOT_FOUND : FOUND;
+                if(memo == NOT_FOUND || tentative_g_score<g_score[neighbor[i]]){
                     came_from[neighbor[i]] = current;
                     g_score[neighbor[i]] = tentative_g_score;
                     f_score[neighbor[i]] = g_score[neighbor[i]] + h_cost(neighbor[i], goal, n);
-                    if(memoFind == NOT_FOUND && addHead(&openset, neighbor[i]) == NULL){
-                        return ALLOC_ERR; // AddHead failed to add openset[position] = OPEN
+                    if(memo == NOT_FOUND && addHead(&openset, neighbor[i]) == NULL){
+                        return ALLOC_ERR; // AddHead failed to set openset[position] to OPEN
                     }
                 }
             }
@@ -136,8 +138,7 @@ static int load(FILE *in, char map_in[], char map_out[], node **openset, int clo
         if(i > n2)
             return INPUT_ERR;
         fscanf(in, "%c", &map_in[i]);
-        if(map_in[i]=='X' || map_in[i]=='O' || map_in[i]=='V' || map_in[i]=='W' || map_in[i]=='#'){ // Accepted char set
-            // Set other maps.
+        if(dist_between(map_in[i]) != INVALID_INPUT){ // Skips invalid inputs
             closedset[i] = OPEN;
             came_from[i] = NOT_SET;
             g_score[i] = 10000000; // arbitrarily high number that will be swapped.
@@ -196,10 +197,24 @@ static int dist_between(char map_weight){ // map_in[neighbor]
             return 1;
         case 'W':
             return 2;
-        default: // case: '#' || 'O'
+        case '#':
+        case 'O':
             return infinity;
+        default:
+            return INVALID_INPUT;
     }
 }
+
+/*static int dist_between(char map_weight){ // map_in[neighbor]
+    if(map_weight == '#' || map_weight == 'O')
+        return infinity;
+    else if(map_weight == '\n'){
+        return INVALID_INPUT;
+    }
+    else{
+        return map_weight-47;
+    }
+}*/
 
 static void neighbor_nodes(int neighbor[], int current, int n){
     neighbor[0] = (current-n>=n) ? current-n : OUT_OF_BOUNDS; // Same column, one line above
