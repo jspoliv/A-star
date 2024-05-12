@@ -16,7 +16,7 @@ node* addHead(node **head, node_data new_data) {
     return new_node;
 }
 
-node* addLast(node **head, node_data new_data) {
+node* addTail(node **head, node_data new_data) {
     node *new_node = (node*)malloc(sizeof(node)); // calloc could be used to initialize node->prev and node->next as NULL
     if(new_node==NULL)
         return NULL;
@@ -44,7 +44,7 @@ node* findNode(node **head, node_data data) {
     return tmp; // returns NULL if *head is NULL or if data is not found
 }
 
-int freeLast(node **head) { // returns 1 when head is/becomes NULL
+int freeTail(node **head) { // returns 1 when removing the last node or when the list is already empty
     node *last = *head;
     if(*head != NULL) {
         if((*head)->next == NULL) { // frees the *head
@@ -64,7 +64,7 @@ int freeLast(node **head) { // returns 1 when head is/becomes NULL
     return 1;
 }
 
-int freeHead(node **head) { // returns 1 when head is/becomes NULL
+int freeHead(node **head) { // returns 1 when removing the last node or when the list is already empty
     node *tmp = *head;
     if(*head != NULL) {
         if((*head)->next == NULL) { // if *head is the only node

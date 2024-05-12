@@ -9,10 +9,10 @@ typedef struct Node {
 } node;
 
 node* addHead(node **head, node_data new_data);
-node* addLast(node **head, node_data new_data);
+node* addTail(node **head, node_data new_data);
 node* findNode(node **head, node_data data);
 int removeNode(node **head, node_data data);
 int freeHead(node **head);
-int freeLast(node **head);
+int freeTail(node **head);
 
 #endif // LIST_H
