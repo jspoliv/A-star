@@ -17,10 +17,10 @@ int main(int argc, char** argv) {
         err = a_star(file1, file2);
     }
     end = clock();
+    printf("Time elapsed: %fs\n\n", (double)(end - begin) / CLOCKS_PER_SEC);
+    
     if(err < 0)
         printerr(err);
-
-    printf("Time elapsed: %fs\n\n", (double)(end - begin) / CLOCKS_PER_SEC);
 
     return err;
 }

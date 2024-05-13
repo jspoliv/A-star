@@ -17,7 +17,8 @@ static int lowest_f_score(node **openset, int f_score[]);
 static int h_cost(int current, int goal, int n);
 static void neighbor_nodes(int neighbor[], int current, int n);
 static int reconstruct_path(int came_from[], int current_node, char map_in[], char map_out[]);
-static int print_map(char out_path[], map *m);
+static int write_map(char out_path[], map *m);
+static node* push_by_fscore(node **head, node_data new_data, int f_score[]);
 
 
 int a_star(char in_path[], char out_path[]) {
@@ -47,18 +48,19 @@ int a_star(char in_path[], char out_path[]) {
 
     // printf("while(m.openset!=NULL)\n\n");
     while(m.openset!=NULL) {
-        current = lowest_f_score(&(m.openset), m.f_score);
+        current = lowest_f_score(&(m.openset), m.f_score); // current=lowest_f and openset[current]=CLOSED
+        if(current < 0)
+            return current;
         
-        if(current == m.goal) { // goal found, execute and exit code
-            return print_map(out_path, &m); // end program, return successful.
+        if(current == m.goal) { // if goal found
+            return write_map(out_path, &m); // end program, successful return.
         }
 
-        removeNode(&(m.openset), current); // openset[current] = CLOSED
         m.closedset[current] = CLOSED;
 
         neighbor_nodes(neighbor, current, m.size); // fetches position of current neighbors.
         for(i=0; i<numNeighbors; i++) {
-            if(neighbor[i] != OUT_OF_BOUNDS) {
+            if(neighbor[i] != OUT_OF_BOUNDS && m.in[neighbor[i]] != '#') {
                 tentative_g_score = m.g_score[current] + edge_weight(m.in[neighbor[i]]);
                 if(m.closedset[neighbor[i]] == CLOSED && tentative_g_score>=m.g_score[neighbor[i]])
                     continue;
@@ -67,8 +69,8 @@ int a_star(char in_path[], char out_path[]) {
                     m.came_from[neighbor[i]] = current;
                     m.g_score[neighbor[i]] = tentative_g_score;
                     m.f_score[neighbor[i]] = m.g_score[neighbor[i]] + h_cost(neighbor[i], m.goal, m.size);
-                    if(memo == NOT_FOUND && addHead(&(m.openset), neighbor[i]) == NULL) { // if NOT_FOUND add to openset
-                        return ALLOC_ERR; // addHead failed to set openset[position] to OPEN
+                    if(memo == NOT_FOUND && push_by_fscore(&(m.openset), neighbor[i], m.f_score) == NULL) { // if NOT_FOUND add neighbor[i] to openset
+                        return ALLOC_ERR; // push_by_fscore failed to set openset[position] to OPEN
                     }
                 }
             }
@@ -78,12 +80,11 @@ int a_star(char in_path[], char out_path[]) {
 }
 
 
+/** Allocates the pointers in map. */
 static int alloc_map(map *m) {
     printf("\nn:%i n*n:%i\nalloc_map()", m->size, m->size*m->size);
     m->openset = NULL;
-    m->start = -1;
-    m->goal = -1;
-
+    
     m->closedset = (int*)malloc(m->size*m->size*sizeof(int));
     if(m->closedset == NULL)
         return ALLOC_ERR;
@@ -109,6 +110,7 @@ static int alloc_map(map *m) {
 }
 
 
+/** Loads the input from *in into the map. */
 static int load(FILE *in, map *m) {
     printf("load()");
     int i=0;
@@ -129,7 +131,7 @@ static int load(FILE *in, map *m) {
                     break;
                 case 'O':
                     m->start = i;
-                    if(addHead(&(m->openset), i) == NULL) // AddHead marks the start position as open.
+                    if(push_front(&(m->openset), i) == NULL) // push_front marks the start position as open.
                         return ALLOC_ERR;
             }
             i++;
@@ -145,10 +147,11 @@ static int load(FILE *in, map *m) {
 
 /** Returns the cost from getting from the start to the exit. */
 static int reconstruct_path(int came_from[], int current_node, char map_in[], char map_out[]) {
-    // starting current_node should be 'X'
+    // the starting current_node should be 'X'
     int sum = 0;
-    // if(came_from[current_node] != NOT_SET) // should be true by definition
-    current_node = came_from[current_node]; // skips 'X'
+    // if(came_from[current_node] != NOT_SET) { // should be true by definition
+    sum += edge_weight(map_in[current_node]);
+    current_node = came_from[current_node]; // } skips 'X'
     while(came_from[current_node] != NOT_SET) {
         map_out[current_node]='*';
         sum += edge_weight(map_in[current_node]);
@@ -165,7 +168,7 @@ static int reconstruct_path(int came_from[], int current_node, char map_in[], ch
 static int edge_weight(char input) {
     switch (input) {
     case 'X':
-        return 0;
+        return 1;
     case '#':
     case 'O':
         return WALL;
@@ -177,24 +180,11 @@ static int edge_weight(char input) {
 }
 
 
-/** Checks the weight for the input char.
- * Wider range of chars accepted, returns based on char->int value.
- * @param input char to evaluate, map_in[position].
- * @return the corresponding weight for the input char, 1, 2, WALL or INVALID_INPUT.
- *//*
-static int edge_weight2(char input) {
-    switch (input) {
-        case '#':
-        case 'O':
-            return WALL;
-        case '\n':
-            return INVALID_INPUT;
-        default:
-            return input-47;
-    }
-}
+/** Receives the position of the current node's neighbors.
+ * @param neighbor array that receives the positions around current.
+ * @param current position of the current node.
+ * @param n N of the NxN map.
 */
-
 static void neighbor_nodes(int neighbor[], int current, int n) {
     neighbor[0] = (current-n>=n) ? current-n : OUT_OF_BOUNDS; // Same column, one line above
 
@@ -209,7 +199,7 @@ static void neighbor_nodes(int neighbor[], int current, int n) {
 /** Heuristic cost for f_score
  * @param current current position.
  * @param goal goal position.
- * @param n size of the X axis of the map.
+ * @param n N value of the NxN map.
  * @return the Manhattan distance from [current] to [goal].
  */
 static int h_cost(int current, int goal, int n) { 
@@ -224,39 +214,40 @@ static int h_cost(int current, int goal, int n) {
 }
 
 
-static int lowest_f_score(node **openset, int f_score[]) { // position of the lowest value in f_score[]
+/** Returns the position with the lowest f_score in openset; removes that position from openset */
+static int lowest_f_score(node **openset, int f_score[]) {
     int lowest;
-    node *tmp = *openset;
-    if(tmp!=NULL)
-        lowest = tmp->data;
-    while(tmp!=NULL) { // starts from the above skip
-        if(f_score[tmp->data]<f_score[lowest])
-            lowest = tmp->data;
-        tmp = tmp->next;
+    node *aux = pop_front(openset);
+    if(aux != NULL) {
+        lowest = aux->data;
+        free(aux);
+        aux = NULL;
+        return lowest;
     }
-    return lowest;
+    return LOW_F_ERR;
 }
 
 
-static int print_map(char out_path[], map *m) {
+/** Writes the pathfinding cost and m->out into a ".txt" file. */
+static int write_map(char out_path[], map *m) {
     FILE *out_file = fopen(out_path, "w");
     if(out_file == NULL)
         return FILE_W_ERR;
     printf("reconstruct_path()");
     int memo = reconstruct_path(m->came_from, m->goal, m->in, m->out);
-        fprintf(out_file, "%d", memo);
-        printf(" ended sucessfully.\n\n");
-        for(int i=0; i<m->size*m->size; i++) {
-            if((i%m->size)==0) {
-                fprintf(out_file, "\n");
-            }
-            fprintf(out_file, "%c", m->out[i]);
+    fprintf(out_file, "%d", memo);
+    printf(" ended sucessfully.\n\n");
+    for(int i=0; i<m->size*m->size; i++) {
+        if((i%m->size)==0) {
+            fprintf(out_file, "\n");
         }
-        fclose(out_file);
-        printf("Pathfinding was successful.\n");
-        printf("Path cost: %d\n", memo);
-        // system("pause");
-        return 0;
+        fprintf(out_file, "%c", m->out[i]);
+    }
+    fclose(out_file);
+    printf("Pathfinding was successful.\n");
+    printf("Path cost: %d\n", memo);
+    // system("pause");
+    return 0;
 }
 
 
@@ -276,6 +267,44 @@ void printerr(err_e err_no) {
             break;
         case PATH_ERR:
             printf("\nError: Pathfinding failed.\n\n");
+            break;
+        case LOW_F_ERR:
+            printf("\nError: lowest_fscore() failed.\n\n");
     }
 }
 
+/** Pushes new_data based on it's f_score; the *head always ends with the lowest f_score. */
+static node* push_by_fscore(node **head, node_data new_data, int f_score[]) {
+    node *new_node = (node*)malloc(sizeof(node));
+    if(new_node==NULL)
+        return NULL;
+    new_node->prev = NULL;
+    new_node->data = new_data;
+    new_node->next = NULL;
+
+    if(*head == NULL) {
+        *head = new_node;
+    }
+    else {
+        node *aux = *head;
+        while(aux->next != NULL && f_score[aux->data] < f_score[new_data])
+            aux = aux->next;
+        if(f_score[aux->data] >= f_score[new_data]) { // adds new_node as aux->prev
+            new_node->prev = aux->prev;
+            if(aux->prev != NULL)
+                aux->prev->next = new_node;
+            aux->prev = new_node;
+            new_node->next = aux;
+            if(aux == *head)
+                *head = new_node;
+        }
+        else { // adds new_node as aux->next
+            new_node->next = aux->next;
+            if(aux->next != NULL)
+                aux->next->prev = new_node;
+            aux->next = new_node;
+            new_node->prev = aux;
+        }
+    }
+    return new_node;
+}
