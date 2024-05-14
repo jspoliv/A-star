@@ -1,6 +1,7 @@
 #ifndef LIST_H
 #define LIST_H
 
+/** node_data should be comparable. */
 typedef int node_data;
 
 typedef struct Node {

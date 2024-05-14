@@ -4,7 +4,7 @@
 #define numNeighbors 4
 
 enum STATUS {
-    MAX_INT = ~0U >> 1,
+    INF = ~0U >> 1,
     WALL = 100000,
     OPEN = 0,
     CLOSED = 1,
@@ -14,10 +14,11 @@ enum STATUS {
     NOT_SET = -1,
     INVALID_INPUT = -1,
     LIMITED = 0,
+    GOAL_FOUND = 0,
+    GOAL_NOT_FOUND = INF,
 };
 
 typedef enum ASTAR_ERR {
-    PATH_ERR = -1,
     FILE_R_ERR = -10,
     FILE_W_ERR = -11,
     INPUT_ERR = -12,

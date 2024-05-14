@@ -84,23 +84,19 @@ int removeNode(node **head, node_data data) {
         aux = aux->next;
     if(aux != NULL) { // data is found
         if(aux->prev == NULL) { // aux == head
-            *head = aux->next;
+            *head = (*head)->next;
             if(*head != NULL)
                 (*head)->prev = NULL;
-            free(aux);
-            aux = NULL;
         }
-        else if(aux->next != NULL){ // aux == body
+        else if(aux->next != NULL) { // aux == body
             aux->prev->next = aux->next;
             aux->next->prev = aux->prev;
-            free(aux);
-            aux = NULL;
         }
         else { // aux == tail end
-            aux = aux->prev;
-            free(aux->next);
-            aux->next = NULL;
+            aux->prev->next = NULL;
         }
+        free(aux);
+        aux = NULL;
         return 1; // data removed successfully
     }
     return 0; // data not found

@@ -7,7 +7,7 @@ typedef struct Map {
     node *openset;
     int *closedset, *came_from, *g_score, *f_score;
     int size, start, goal;
-    char *in, *out;
+    char *grid;
 } map;
 
 static int alloc_map(map *m);
@@ -16,9 +16,10 @@ static int edge_weight(char input);
 static int lowest_f_score(node **openset, int f_score[]);
 static int h_cost(int current, int goal, int n);
 static void neighbor_nodes(int neighbor[], int current, int n);
-static int reconstruct_path(int came_from[], int current_node, char map_in[], char map_out[]);
-static int write_map(char out_path[], map *m);
+static int reconstruct_path(int came_from[], int current_node, char map[]);
+static int write_map(char out_path[], map *m, int exit_status);
 static node* push_by_fscore(node **head, node_data new_data, int f_score[]);
+
 
 
 int a_star(char in_path[], char out_path[]) {
@@ -32,7 +33,7 @@ int a_star(char in_path[], char out_path[]) {
         return FILE_R_ERR;
     
     fscanf(in_file, "%d", &m.size);
-    if(m.size < 2 || m.size > 46340)
+    if(m.size < 4 || m.size > 46340)
         return INPUT_ERR;
 
     err_no = alloc_map(&m);
@@ -47,21 +48,21 @@ int a_star(char in_path[], char out_path[]) {
     m.f_score[m.start] = m.g_score[m.start] + h_cost(m.start, m.goal, m.size);
 
     // printf("while(m.openset!=NULL)\n\n");
-    while(m.openset!=NULL) {
+    while(m.openset!=NULL) { // while openset isn't empty
         current = lowest_f_score(&(m.openset), m.f_score); // current=lowest_f and openset[current]=CLOSED
         if(current < 0)
             return current;
         
-        if(current == m.goal) { // if goal found
-            return write_map(out_path, &m); // end program, successful return.
+        if(current == m.goal) {
+            return write_map(out_path, &m, GOAL_FOUND); // end program, successful return.
         }
 
         m.closedset[current] = CLOSED;
 
         neighbor_nodes(neighbor, current, m.size); // fetches position of current neighbors.
         for(i=0; i<numNeighbors; i++) {
-            if(neighbor[i] != OUT_OF_BOUNDS && m.in[neighbor[i]] != '#') {
-                tentative_g_score = m.g_score[current] + edge_weight(m.in[neighbor[i]]);
+            if(neighbor[i] != OUT_OF_BOUNDS && m.grid[neighbor[i]] != '#') { // ignores OUT_OF_BOUNDS positions and '#'
+                tentative_g_score = m.g_score[current] + edge_weight(m.grid[neighbor[i]]);
                 if(m.closedset[neighbor[i]] == CLOSED && tentative_g_score>=m.g_score[neighbor[i]])
                     continue;
                 memo = findNode(&(m.openset), neighbor[i])==NULL ? NOT_FOUND : FOUND;
@@ -76,7 +77,7 @@ int a_star(char in_path[], char out_path[]) {
             }
         }
     }
-    return PATH_ERR;
+    return write_map(out_path, &m, GOAL_NOT_FOUND);
 }
 
 
@@ -98,11 +99,8 @@ static int alloc_map(map *m) {
     if(m->f_score == NULL)
         return ALLOC_ERR;
 
-    m->in = (char*)malloc(m->size*m->size*sizeof(char));
-    if(m->in == NULL)
-        return ALLOC_ERR;
-    m->out = (char*)malloc(m->size*m->size*sizeof(char));
-    if(m->out == NULL)
+    m->grid = (char*)malloc(m->size*m->size*sizeof(char));
+    if(m->grid == NULL)
         return ALLOC_ERR;
 
     printf(" ended successfully.\n");
@@ -117,15 +115,14 @@ static int load(FILE *in, map *m) {
     while(!feof(in)) { // Load map.
         if(i > m->size*m->size)
             return INPUT_ERR;
-        fscanf(in, "%c", &m->in[i]);
-        if(edge_weight(m->in[i]) != INVALID_INPUT) { // Skips invalid inputs
+        fscanf(in, "%c", &m->grid[i]);
+        if(edge_weight(m->grid[i]) != INVALID_INPUT) { // Skips invalid inputs
             m->closedset[i] = OPEN;
             m->came_from[i] = NOT_SET;
-            m->g_score[i] = MAX_INT;
-            m->f_score[i] = MAX_INT;
-            m->out[i] = m->in[i];
+            m->g_score[i] = INF;
+            m->f_score[i] = INF;
 
-            switch(m->in[i]) {
+            switch(m->grid[i]) {
                 case 'X':
                     m->goal = i;
                     break;
@@ -146,15 +143,15 @@ static int load(FILE *in, map *m) {
 
 
 /** Returns the cost from getting from the start to the exit. */
-static int reconstruct_path(int came_from[], int current_node, char map_in[], char map_out[]) {
+static int reconstruct_path(int came_from[], int current_node, char map[]) {
     // the starting current_node should be 'X'
     int sum = 0;
     // if(came_from[current_node] != NOT_SET) { // should be true by definition
-    sum += edge_weight(map_in[current_node]);
+    sum += edge_weight(map[current_node]);
     current_node = came_from[current_node]; // } skips 'X'
     while(came_from[current_node] != NOT_SET) {
-        map_out[current_node]='*';
-        sum += edge_weight(map_in[current_node]);
+        sum += edge_weight(map[current_node]);
+        map[current_node]='*';
         current_node = came_from[current_node];
     }
     return sum;
@@ -229,25 +226,30 @@ static int lowest_f_score(node **openset, int f_score[]) {
 
 
 /** Writes the pathfinding cost and m->out into a ".txt" file. */
-static int write_map(char out_path[], map *m) {
+static int write_map(char out_path[], map *m, int exit_status) {
     FILE *out_file = fopen(out_path, "w");
+    int cost = INF;
     if(out_file == NULL)
         return FILE_W_ERR;
-    printf("reconstruct_path()");
-    int memo = reconstruct_path(m->came_from, m->goal, m->in, m->out);
-    fprintf(out_file, "%d", memo);
-    printf(" ended sucessfully.\n\n");
+    if(exit_status == GOAL_FOUND) {
+        printf("reconstruct_path()");
+        cost = reconstruct_path(m->came_from, m->goal, m->grid);
+        printf(" ended sucessfully.\n\nPathfinding was successful.\n");
+    }
+    else {
+        printf("\nPathfinding failed.\n");
+    }
+    fprintf(out_file, "%d", cost);
     for(int i=0; i<m->size*m->size; i++) {
         if((i%m->size)==0) {
             fprintf(out_file, "\n");
         }
-        fprintf(out_file, "%c", m->out[i]);
+        fprintf(out_file, "%c", m->grid[i]);
     }
     fclose(out_file);
-    printf("Pathfinding was successful.\n");
-    printf("Path cost: %d\n", memo);
+    printf("Path cost: %d\n", cost);
     // system("pause");
-    return 0;
+    return exit_status;
 }
 
 
@@ -264,9 +266,6 @@ void printerr(err_e err_no) {
             break;
         case ALLOC_ERR:
             printf("\nError: Memory allocation failed.\n\n");
-            break;
-        case PATH_ERR:
-            printf("\nError: Pathfinding failed.\n\n");
             break;
         case LOW_F_ERR:
             printf("\nError: lowest_fscore() failed.\n\n");
