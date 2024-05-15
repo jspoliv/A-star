@@ -155,7 +155,7 @@ static int load(FILE *in, map *m) {
             i++;
         }
     } // End Load Map.
-    if(i < m->size*m->size)
+    if(i < m->size*m->size || m->start == NOT_SET || m->goal == NOT_SET || m->start == m->goal)
         return INPUT_ERR;
     fclose(in);
     printf(" ended successfully.\n");
@@ -191,6 +191,7 @@ static int edge_weight(char input) {
     case 'O':
         return WALL;
     case '\n':
+    case '*':
         return INVALID_INPUT;
     default:
         return input-47;
