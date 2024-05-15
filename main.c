@@ -8,7 +8,7 @@
 
 int main(int argc, char** argv) {
     clock_t begin, end;
-    err_e err = 0;
+    err_e err;
 
     begin = clock();
     if(argc == 3) {

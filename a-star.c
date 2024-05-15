@@ -3,11 +3,27 @@
 #include "list.h"
 #include "a-star.h"
 
+#define numNeighbors 4
+
+enum STATUS {
+    INF = ~0U >> 1,
+    WALL = 100000,
+    NOT_SET = INF,
+    INVALID_INPUT = INF,
+    OUT_OF_BOUNDS = INF,
+    OPEN = '0',
+    CLOSED = '1',
+    FOUND = 0,
+    NOT_FOUND = 1,
+    GOAL_FOUND = 0,
+    GOAL_NOT_FOUND = 1,
+};
+
 typedef struct Map {
     node *openset;
-    int *closedset, *came_from, *g_score, *f_score;
+    int *came_from, *g_score, *f_score;
     int size, start, goal;
-    char *grid;
+    char *closedset, *grid;
 } map;
 
 static int alloc_map(map *m);
@@ -16,7 +32,7 @@ static int edge_weight(char input);
 static int lowest_f_score(node **openset, int f_score[]);
 static int h_cost(int current, int goal, int n);
 static void neighbor_nodes(int neighbor[], int current, int n);
-static int reconstruct_path(int came_from[], int current_node, char map[]);
+static int reconstruct_path(int came_from[], int current_node, char grid[]);
 static int write_map(char out_path[], map *m, int exit_status);
 static node* push_by_fscore(node **head, node_data new_data, int f_score[]);
 
@@ -85,18 +101,23 @@ int a_star(char in_path[], char out_path[]) {
 static int alloc_map(map *m) {
     printf("\nn:%i n*n:%i\nalloc_map()", m->size, m->size*m->size);
     m->openset = NULL;
-    
-    m->closedset = (int*)malloc(m->size*m->size*sizeof(int));
-    if(m->closedset == NULL)
-        return ALLOC_ERR;
+    m->start = NOT_SET;
+    m->goal = NOT_SET;
+
     m->came_from = (int*)malloc(m->size*m->size*sizeof(int));
     if(m->came_from == NULL)
         return ALLOC_ERR;
+
     m->g_score = (int*)malloc(m->size*m->size*sizeof(int));
     if(m->g_score == NULL)
         return ALLOC_ERR;
+
     m->f_score = (int*)malloc(m->size*m->size*sizeof(int));
     if(m->f_score == NULL)
+        return ALLOC_ERR;
+
+    m->closedset = (char*)malloc(m->size*m->size*sizeof(char));
+    if(m->closedset == NULL)
         return ALLOC_ERR;
 
     m->grid = (char*)malloc(m->size*m->size*sizeof(char));
@@ -143,15 +164,15 @@ static int load(FILE *in, map *m) {
 
 
 /** Returns the cost from getting from the start to the exit. */
-static int reconstruct_path(int came_from[], int current_node, char map[]) {
+static int reconstruct_path(int came_from[], int current_node, char grid[]) {
     // the starting current_node should be 'X'
     int sum = 0;
     // if(came_from[current_node] != NOT_SET) { // should be true by definition
-    sum += edge_weight(map[current_node]);
+    sum += edge_weight(grid[current_node]);
     current_node = came_from[current_node]; // } skips 'X'
     while(came_from[current_node] != NOT_SET) {
-        sum += edge_weight(map[current_node]);
-        map[current_node]='*';
+        sum += edge_weight(grid[current_node]);
+        grid[current_node]='*';
         current_node = came_from[current_node];
     }
     return sum;
@@ -159,7 +180,7 @@ static int reconstruct_path(int came_from[], int current_node, char map[]) {
 
 
 /** Checks the weight for the input char.
- * @param input char to evaluate, map_in[position].
+ * @param input char to evaluate, grid[position].
  * @return the corresponding weight for the input char or INVALID_INPUT.
  */
 static int edge_weight(char input) {
@@ -180,7 +201,7 @@ static int edge_weight(char input) {
 /** Receives the position of the current node's neighbors.
  * @param neighbor array that receives the positions around current.
  * @param current position of the current node.
- * @param n N of the NxN map.
+ * @param n N value of the NxN map.
 */
 static void neighbor_nodes(int neighbor[], int current, int n) {
     neighbor[0] = (current-n>=n) ? current-n : OUT_OF_BOUNDS; // Same column, one line above
@@ -249,7 +270,7 @@ static int write_map(char out_path[], map *m, int exit_status) {
     fclose(out_file);
     printf("Path cost: %d\n", cost);
     // system("pause");
-    return exit_status;
+    return 0;
 }
 
 
