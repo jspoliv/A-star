@@ -29,7 +29,7 @@ typedef struct Map {
 static int alloc_map(map *m);
 static int load(FILE *in, map *m);
 static int edge_weight(char input);
-static int lowest_f_score(node **openset, int f_score[]);
+static int lowest_f_score(node **openset);
 static int h_cost(int current, int goal, int n);
 static void neighbor_nodes(int neighbor[], int current, int n);
 static int reconstruct_path(int came_from[], int current_node, char grid[]);
@@ -65,7 +65,7 @@ int a_star(char in_path[], char out_path[]) {
 
     // printf("while(m.openset!=NULL)\n\n");
     while(m.openset!=NULL) { // while openset isn't empty
-        current = lowest_f_score(&(m.openset), m.f_score); // current=lowest_f and openset[current]=CLOSED
+        current = lowest_f_score(&(m.openset)); // current=lowest_f and openset[current]=CLOSED
         if(current < 0)
             return current;
         
@@ -234,23 +234,22 @@ static int h_cost(int current, int goal, int n) {
 
 
 /** Returns the position with the lowest f_score in openset; removes that position from openset */
-static int lowest_f_score(node **openset, int f_score[]) {
-    int lowest;
+static int lowest_f_score(node **openset) {
     node *aux = pop_front(openset);
-    if(aux != NULL) {
-        lowest = aux->data;
-        free(aux);
-        aux = NULL;
-        return lowest;
-    }
-    return LOW_F_ERR;
+    if(aux == NULL)
+        return LOW_F_ERR;
+
+    int lowest = aux->data;
+    free(aux);
+    aux = NULL;
+    return lowest;
 }
 
 
 /** Writes the pathfinding cost and m->out into a ".txt" file. */
 static int write_map(char out_path[], map *m, int exit_status) {
     FILE *out_file = fopen(out_path, "w");
-    int cost = INF;
+    int cost = INF, i;
     if(out_file == NULL)
         return FILE_W_ERR;
     if(exit_status == GOAL_FOUND) {
@@ -262,7 +261,7 @@ static int write_map(char out_path[], map *m, int exit_status) {
         printf("\nPathfinding failed.\n");
     }
     fprintf(out_file, "%d", cost);
-    for(int i=0; i<m->size*m->size; i++) {
+    for(i=0; i<m->size*m->size; i++) {
         if((i%m->size)==0) {
             fprintf(out_file, "\n");
         }
