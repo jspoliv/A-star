@@ -13,16 +13,16 @@ enum STATUS {
     OUT_OF_BOUNDS = INF,
     OPEN = '0',
     CLOSED = '1',
-    FOUND = 0,
-    NOT_FOUND = 1,
+    IN_OPENSET = 0,
+    NOT_IN_OPENSET = 1,
     GOAL_FOUND = 0,
     GOAL_NOT_FOUND = 1,
 };
 
 typedef struct Map {
     node *openset;
-    int *came_from, *g_score, *f_score;
-    int size, start, goal;
+    int size, *g_score, *f_score;
+    int start, goal, *came_from;
     char *closedset, *grid;
 } map;
 
@@ -39,7 +39,8 @@ static node* push_by_fscore(node **head, node_data new_data, int f_score[]);
 
 
 int a_star(char in_path[], char out_path[]) {
-    int i, current, tentative_g_score, neighbor[numNeighbors], memo;
+    int i, is_found, tentative_g_score;
+    int current, neighbor[numNeighbors];
     FILE *in_file;
     map m;
     err_e err_no;
@@ -69,27 +70,27 @@ int a_star(char in_path[], char out_path[]) {
         if(current < 0)
             return current;
         
-        if(current == m.goal) {
+        if(current == m.goal)
             return write_map(out_path, &m, GOAL_FOUND); // end program, successful return.
-        }
 
         m.closedset[current] = CLOSED;
 
         neighbor_nodes(neighbor, current, m.size); // fetches position of current neighbors.
         for(i=0; i<numNeighbors; i++) {
-            if(neighbor[i] != OUT_OF_BOUNDS && m.grid[neighbor[i]] != '#') { // ignores OUT_OF_BOUNDS positions and '#'
-                tentative_g_score = m.g_score[current] + edge_weight(m.grid[neighbor[i]]);
-                if(m.closedset[neighbor[i]] == CLOSED && tentative_g_score>=m.g_score[neighbor[i]])
-                    continue;
-                memo = findNode(&(m.openset), neighbor[i])==NULL ? NOT_FOUND : FOUND;
-                if(memo == NOT_FOUND || tentative_g_score<m.g_score[neighbor[i]]) {
-                    m.came_from[neighbor[i]] = current;
-                    m.g_score[neighbor[i]] = tentative_g_score;
-                    m.f_score[neighbor[i]] = m.g_score[neighbor[i]] + h_cost(neighbor[i], m.goal, m.size);
-                    if(memo == NOT_FOUND && push_by_fscore(&(m.openset), neighbor[i], m.f_score) == NULL) { // if NOT_FOUND add neighbor[i] to openset
-                        return ALLOC_ERR; // push_by_fscore failed to set openset[position] to OPEN
-                    }
-                }
+            if(neighbor[i] == OUT_OF_BOUNDS || m.grid[neighbor[i]] == '#') // ignores OUT_OF_BOUNDS positions and '#'
+                continue;
+
+            tentative_g_score = m.g_score[current] + edge_weight(m.grid[neighbor[i]]);
+            if(m.closedset[neighbor[i]] == CLOSED && tentative_g_score>=m.g_score[neighbor[i]])
+                continue;
+
+            is_found = findNode(&(m.openset), neighbor[i])==NULL ? NOT_IN_OPENSET : IN_OPENSET;
+            if(is_found == NOT_IN_OPENSET || tentative_g_score<m.g_score[neighbor[i]]) {
+                m.came_from[neighbor[i]] = current;
+                m.g_score[neighbor[i]] = tentative_g_score;
+                m.f_score[neighbor[i]] = m.g_score[neighbor[i]] + h_cost(neighbor[i], m.goal, m.size);
+                if(is_found == NOT_IN_OPENSET && push_by_fscore(&(m.openset), neighbor[i], m.f_score) == NULL) // if NOT_IN_OPENSET add neighbor[i] to openset
+                    return ALLOC_ERR; // push_by_fscore failed to set openset[position] to OPEN
             }
         }
     }
@@ -149,7 +150,7 @@ static int load(FILE *in, map *m) {
                     break;
                 case 'O':
                     m->start = i;
-                    if(push_front(&(m->openset), i) == NULL) // push_front marks the start position as open.
+                    if(push_front(&(m->openset), m->start) == NULL) // push_front marks the start position as open.
                         return ALLOC_ERR;
             }
             i++;
@@ -181,8 +182,7 @@ static int reconstruct_path(int came_from[], int current_node, char grid[]) {
 
 /** Checks the weight for the input char.
  * @param input char to evaluate, grid[position].
- * @return the corresponding weight for the input char or INVALID_INPUT.
- */
+ * @return the corresponding weight for the input char or INVALID_INPUT. */
 static int edge_weight(char input) {
     switch (input) {
     case 'X':
@@ -202,8 +202,7 @@ static int edge_weight(char input) {
 /** Receives the position of the current node's neighbors.
  * @param neighbor array that receives the positions around current.
  * @param current position of the current node.
- * @param n N value of the NxN map.
-*/
+ * @param n N value of the NxN map. */
 static void neighbor_nodes(int neighbor[], int current, int n) {
     neighbor[0] = (current-n>=n) ? current-n : OUT_OF_BOUNDS; // Same column, one line above
 
@@ -219,8 +218,7 @@ static void neighbor_nodes(int neighbor[], int current, int n) {
  * @param current current position.
  * @param goal goal position.
  * @param n N value of the NxN map.
- * @return the Manhattan distance from [current] to [goal].
- */
+ * @return the Manhattan distance from [current] to [goal]. */
 static int h_cost(int current, int goal, int n) { 
     return(abs((goal/n)-(current/n))+abs((goal%n)-(current%n)));
     /* extended version of the return() above.
