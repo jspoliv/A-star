@@ -8,19 +8,25 @@
 
 int main(int argc, char** argv) {
     clock_t begin, end;
-    err_e err;
+    int result;
 
     begin = clock();
     if(argc == 3) {
-        err = a_star(argv[1], argv[2]);
+        result = a_star(argv[1], argv[2]);
     } else {
-        err = a_star(file1, file2);
+        //for(int i=0; i<1000 && a_star(file1, file2) > 0; i++);
+        result = a_star(file1, file2);
     }
     end = clock();
-    printf("Time elapsed: %fs\n\n", (double)(end - begin) / CLOCKS_PER_SEC);
-    
-    if(err < 0)
-        printerr(err);
 
-    return err;
+    if(result > 0)
+        printf("Pathfinding was successful.\n");
+    else if(result == GOAL_NOT_FOUND)
+        printf("Pathfinding failed.\n");
+    printf("Path cost: %d\nTime elapsed: %fs\n\n", result, ((double)(end - begin) / CLOCKS_PER_SEC));
+    
+    if(result < 0)
+        printerr(result);
+
+    return 0;
 }
