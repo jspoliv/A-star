@@ -20,7 +20,9 @@ typedef enum ASTAR_ERR {
     FILE_W_ERR = -11,
     INPUT_ERR = -12,
     ALLOC_ERR = -20,
-    LOW_F_ERR = -21,
+    PUSH_FRONT_ERR = -21,
+    LOW_F_ERR = -22,
+    PUSH_BY_F_ERR = -23,
 } err_e;
 
 int a_star(char inputfile[], char outputfile[]);
