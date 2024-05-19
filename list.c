@@ -74,7 +74,7 @@ dl_list* dl_findNode(dl_list **head, node_data data) {
 }
 
 
-dl_list* push_back(dl_list **head, node_data new_data) {
+dl_list* dl_push_back(dl_list **head, node_data new_data) {
     dl_list *new_node = (dl_list*)malloc(sizeof(dl_list));
     if(new_node==NULL)
         return NULL;
@@ -96,7 +96,7 @@ dl_list* push_back(dl_list **head, node_data new_data) {
 }
 
 
-dl_list* pop_back(dl_list **head) {
+dl_list* dl_pop_back(dl_list **head) {
     dl_list *aux = *head;
     if(*head != NULL) {
         if((*head)->next == NULL) { // if *head is the only node
@@ -112,7 +112,7 @@ dl_list* pop_back(dl_list **head) {
 }
 
 
-int removeNode(dl_list **head, node_data data) {
+int dl_removeNode(dl_list **head, node_data data) {
     dl_list *aux = *head;
     while(aux != NULL && aux->data != data)
         aux = aux->next;

@@ -23,8 +23,7 @@ static sl_list* sl_push_by_fscore(sl_list **head, node_data new_data, int f_scor
 
 
 int a_star(char filepath_in[], char filepath_out[]) {
-    int i, tentative_g_score;
-    int current, neighbor[numNeighbors];
+    int i, tentative_g_score, current, neighbor[numNeighbors];
     map m;
 
     i = new_map(&m, filepath_in);
@@ -44,10 +43,7 @@ int a_star(char filepath_in[], char filepath_out[]) {
 
         m.closedset[current] = CLOSED;
 
-        neighbor[0] = (current-m.size>=m.size) ? current-m.size : OUT_OF_BOUNDS; // Same column, one line above
-        neighbor[1] = (current-1>=m.size) ? current-1 : OUT_OF_BOUNDS; // Same line, one column to the left
-        neighbor[2] = (current+1<=(m.size*m.size)) ? current+1 : OUT_OF_BOUNDS; // Same line, one column to the right
-        neighbor[3] = (current+m.size<=(m.size*m.size)) ? current+m.size : OUT_OF_BOUNDS; // Same column, one line bellow
+        neighbor_nodes(neighbor, current, m.size);
         for(i=0; i<numNeighbors; i++) {
             if(neighbor[i] == OUT_OF_BOUNDS || m.grid[neighbor[i]] == WALL) // ignores OUT_OF_BOUNDS positions and walls
                 continue;
@@ -56,7 +52,6 @@ int a_star(char filepath_in[], char filepath_out[]) {
             if(m.closedset[neighbor[i]] == CLOSED && tentative_g_score>=m.g_score[neighbor[i]])
                 continue;
 
-            //is_found = dl_findNode(&(m.open_list), neighbor[i])==NULL ? NOT_IN_OPENSET : IN_OPENSET;
             if(m.openset[neighbor[i]] == NOT_IN_OPENSET || tentative_g_score<m.g_score[neighbor[i]]) {
                 m.came_from[neighbor[i]] = current;
                 m.g_score[neighbor[i]] = tentative_g_score;
@@ -73,7 +68,8 @@ int a_star(char filepath_in[], char filepath_out[]) {
 }
 
 
-/** Loads the input from file into the map. */
+/** Loads the input from filepath into the map.
+ * @return Returns i<0 if it errors. */
 static int new_map(map *m, char filepath_in[]) {
     ///printf("load()");
     FILE *in = fopen(filepath_in, "r");
@@ -194,10 +190,10 @@ static int reconstruct_path(map *m) {
  * @param current position of the current node.
  * @param n N value of the NxN map. */
 static void neighbor_nodes(int neighbor[], int current, int n) {
-    neighbor[0] = (current-n>=n) ? current-n : OUT_OF_BOUNDS; // Same column, one line above
-    neighbor[1] = (current-1>=n) ? current-1 : OUT_OF_BOUNDS; // Same line, one column to the left
-    neighbor[2] = (current+1<=(n*n)) ? current+1 : OUT_OF_BOUNDS; // Same line, one column to the right
-    neighbor[3] = (current+n<=(n*n)) ? current+n : OUT_OF_BOUNDS; // Same column, one line bellow
+    neighbor[0] = current-n>=0 ? current-n : OUT_OF_BOUNDS; // Same column, one line above
+    neighbor[1] = current-1>=0 && (current-1)/n == current/n ? current-1 : OUT_OF_BOUNDS; // Same line, one column to the left
+    neighbor[2] = current+1<n*n && (current+1)/n == current/n ? current+1 : OUT_OF_BOUNDS; // Same line, one column to the right
+    neighbor[3] = current+n<n*n ? current+n : OUT_OF_BOUNDS; // Same column, one line bellow
 }
 
 
@@ -222,7 +218,6 @@ static int lowest_f_score(dl_list **open_list, char openset[]) {
     int lowest = aux->data;
     openset[lowest] = CLOSED;
     free(aux);
-    aux = NULL;
     return lowest;
 }
 
@@ -238,7 +233,7 @@ static int write_map(char filepath_out[], map *m, int exit_status) {
         cost = reconstruct_path(m);
 
     fprintf(out_file, "%d", cost);
-    for(i=0; i<m->size*m->size; i++) {
+    for(i=0; i < m->size*m->size; i++) {
         if((i%m->size)==0) {
             fprintf(out_file, "\n");
         }
