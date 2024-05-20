@@ -3,14 +3,16 @@
 
 enum STATUS {
     INF = ~0U >> 1,
+    START = 'O',
+    GOAL = 'X',
     WALL = '#',
     INVALID_INPUT = '\n',
     OUT_OF_BOUNDS = INF,
     NOT_SET = INF,
-    OPEN = '0',
-    CLOSED = '1',
-    IN_OPENSET = 0,
-    NOT_IN_OPENSET = 1,
+    OPEN = '\0',
+    CLOSED = 1,
+    NOT_IN_OPENSET = '\0',
+    IN_OPENSET = 1,
     GOAL_FOUND = 1,
     GOAL_NOT_FOUND = 0,
 };

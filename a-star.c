@@ -6,38 +6,37 @@
 #define numNeighbors 4
 
 typedef struct Map {
-    dl_list *open_list;
+    dl_list *open_head, *open_tail;
     int size, start, goal, *came_from, *g_score, *f_score;
     char *closedset, *openset, *grid;
 } map;
 
-static int new_map(map *m, char filepath_in[]);
+static int init_map(map *m, char filepath_in[]);
 static int alloc_map(map *m);
-static int lowest_f_score(dl_list **open_list, char openset[]);
+static int lowest_f_score(map *m);
 static int h_cost(map *m, int current);
 static void neighbor_nodes(int neighbor[], int current, int n);
 static int reconstruct_path(map *m);
 static int write_map(char filepath_out[], map *m, int exit_status);
-static dl_list* dl_push_by_fscore(dl_list **head, node_data new_data, int f_score[]);
-static sl_list* sl_push_by_fscore(sl_list **head, node_data new_data, int f_score[]);
+static dl_list* dl_push_by_fscore(dl_list **head, dl_list **tail, node_data new_data, int f_score[]);
 
 
 int a_star(char filepath_in[], char filepath_out[]) {
     int i, tentative_g_score, current, neighbor[numNeighbors];
     map m;
 
-    i = new_map(&m, filepath_in);
+    i = init_map(&m, filepath_in);
     if(i < 0)
         return i;
-    
+
     m.g_score[m.start] = 0;
     m.f_score[m.start] = m.g_score[m.start] + h_cost(&m, m.start);
 
-    while(m.open_list!=NULL) { // while open_list isn't empty
-        current = lowest_f_score(&(m.open_list), m.openset); // current=lowest_f and open_list[current]=CLOSED
+    while(m.open_head!=NULL) { // while open_head isn't empty
+        current = lowest_f_score(&m); // current=lowest_f and open_head[current]=CLOSED
         if(current < 0)
-            return current;
-        
+            return LOW_F_ERR;
+
         if(current == m.goal)
             return write_map(filepath_out, &m, GOAL_FOUND); // end program, successful return.
 
@@ -57,7 +56,7 @@ int a_star(char filepath_in[], char filepath_out[]) {
                 m.g_score[neighbor[i]] = tentative_g_score;
                 m.f_score[neighbor[i]] = m.g_score[neighbor[i]] + h_cost(&m, neighbor[i]);
                 if(m.openset[neighbor[i]] == NOT_IN_OPENSET) {
-                    if(dl_push_by_fscore(&(m.open_list), neighbor[i], m.f_score) == NULL) // add neighbor[i] to openset
+                    if(dl_push_by_fscore(&(m.open_head), &(m.open_tail), neighbor[i], m.f_score) == NULL) // add neighbor[i] to openset
                         return PUSH_BY_F_ERR;
                     m.openset[neighbor[i]] = IN_OPENSET; // add neighbor[i] to openset
                 }
@@ -70,7 +69,7 @@ int a_star(char filepath_in[], char filepath_out[]) {
 
 /** Loads the input from filepath into the map.
  * @return Returns i<0 if it errors. */
-static int new_map(map *m, char filepath_in[]) {
+static int init_map(map *m, char filepath_in[]) {
     ///printf("load()");
     FILE *in = fopen(filepath_in, "r");
     if(in == NULL)
@@ -83,44 +82,45 @@ static int new_map(map *m, char filepath_in[]) {
     if(alloc_map(m) == ALLOC_ERR)
         return ALLOC_ERR;
 
-    m->open_list = NULL;
+    m->open_head = NULL;
+    m->open_tail = NULL;
     m->start = NOT_SET;
     m->goal = NOT_SET;
 
     int i=0;
-    while(!feof(in)) { // Load map.
+    while(!feof(in)) {
         if(i > m->size*m->size)
             return INPUT_ERR;
         fscanf(in, "%c", &m->grid[i]);
 
-        if(m->grid[i] == INVALID_INPUT) // Skips invalid inputs
+        if(m->grid[i] == INVALID_INPUT)
             continue;
 
-        m->closedset[i] = OPEN;
-        m->openset[i] = NOT_IN_OPENSET;
+        //m->closedset[i] = OPEN; // redundant if using calloc
+        //m->openset[i] = NOT_IN_OPENSET; // redundant if using calloc
         m->came_from[i] = NOT_SET;
         m->g_score[i] = INF;
         m->f_score[i] = INF;
 
         switch(m->grid[i]) {
-            case 'X':
+            case GOAL:
                 m->goal = i;
                 break;
-            case 'O':
+            case START:
                 m->start = i;
-                if(dl_push_front(&(m->open_list), i) == NULL) // marks the start position as open.
+                if(dl_push_front(&(m->open_head), &(m->open_tail), i) == NULL) // marks the start position as open.
                     return PUSH_FRONT_ERR;
                 m->openset[i] = IN_OPENSET;
         }
         i++;
-    } // End Load Map.
+    }
 
     if(i < m->size*m->size || m->start == NOT_SET || m->goal == NOT_SET || m->start == m->goal)
         return INPUT_ERR;
     fclose(in);
     ///printf(" ended successfully.\n");
     return 0;
-} // Function end.
+}
 
 
 /** Allocates the pointers in map. */
@@ -139,11 +139,11 @@ static int alloc_map(map *m) {
     if(m->f_score == NULL)
         return ALLOC_ERR;
 
-    m->closedset = (char*)malloc(m->size*m->size*sizeof(char));
+    m->closedset = (char*)calloc(m->size*m->size, sizeof(char));
     if(m->closedset == NULL)
         return ALLOC_ERR;
 
-    m->openset = (char*)malloc(m->size*m->size*sizeof(char));
+    m->openset = (char*)calloc(m->size*m->size, sizeof(char));
     if(m->closedset == NULL)
         return ALLOC_ERR;
 
@@ -164,19 +164,19 @@ static void free_map(map *m) {
     free(m->closedset);
     free(m->openset);
     free(m->grid);
-    while(m->open_list != NULL)
-        free(dl_pop_front(&(m->open_list)));
+    while(m->open_head != NULL)
+        free(dl_pop_front(&(m->open_head), &(m->open_tail)));
 }
 
 
-/** Returns the cost from getting from the start to the exit. */
+/** Returns the cost from getting from the start to the goal while marking the path. */
 static int reconstruct_path(map *m) {
     ///printf("reconstruct_path()");
-    int sum = 0, current_node = m->goal;
-    sum += m->grid[current_node];
-    current_node = m->came_from[current_node]; // } skips 'X'
+    int sum = 0, current_node;
+    sum += m->grid[m->goal];
+    current_node = m->came_from[m->goal];
     while(m->came_from[current_node] != NOT_SET) {
-        sum += m->grid[current_node];//edge_weight(m->grid[current_node]);
+        sum += m->grid[current_node];
         m->grid[current_node]='*';
         current_node = m->came_from[current_node];
     }
@@ -210,19 +210,19 @@ static int h_cost(map *m, int current) {
 }
 
 
-/** Returns the position with the lowest f_score in open_list; removes that position from open_list */
-static int lowest_f_score(dl_list **open_list, char openset[]) {
-    dl_list *aux = dl_pop_front(open_list);
+/** Returns the position with the lowest f_score in open_head; removes that position from open_head */
+static int lowest_f_score(map *m) {
+    dl_list *aux = dl_pop_front(&(m->open_head), &(m->open_tail));
     if(aux == NULL)
         return LOW_F_ERR;
     int lowest = aux->data;
-    openset[lowest] = CLOSED;
+    m->openset[lowest] = CLOSED;
     free(aux);
     return lowest;
 }
 
 
-/** Writes the pathfinding cost and m->out into a ".txt" file. */
+/** Writes the pathfinding cost and m->grid into a ".txt" file. */
 static int write_map(char filepath_out[], map *m, int exit_status) {
     int i, cost = exit_status;
     FILE *out_file = fopen(filepath_out, "w");
@@ -273,69 +273,54 @@ void printerr(err_e err_no) {
 
 /** Pushes new_data based on it's f_score; the *head always ends with the lowest f_score.
  * Doubly linked list */
-static dl_list* dl_push_by_fscore(dl_list **head, node_data new_data, int f_score[]) {
-    dl_list *new_node = (dl_list*)malloc(sizeof(dl_list));
-    if(new_node==NULL)
+static dl_list* dl_push_by_fscore(dl_list **head, dl_list **tail, node_data new_data, int f_score[]) {
+    dl_list *new_node = (dl_list*)malloc(sizeof(dl_list)), *aux;
+    if(new_node == NULL)
         return NULL;
-    new_node->prev = NULL;
+
     new_node->data = new_data;
-    new_node->next = NULL;
 
     if(*head == NULL) {
         *head = new_node;
+        *tail = new_node;
+        new_node->prev = NULL;
+        new_node->next = NULL;
+        return new_node;
+    }
+
+    // finds which of head->data or tail->data is closer to new_data
+    if(abs(f_score[(*head)->data]-f_score[new_data]) > abs(f_score[(*tail)->data]-f_score[new_data])) {
+        aux = *tail;
+        while(aux->prev != NULL && f_score[aux->data] > f_score[new_data])
+            aux = aux->prev;
     }
     else {
-        dl_list *aux = *head;
+        aux = *head;
         while(aux->next != NULL && f_score[aux->data] < f_score[new_data])
             aux = aux->next;
-        if(f_score[aux->data] >= f_score[new_data]) { // adds new_node as aux->prev
-            new_node->prev = aux->prev;
-            if(aux->prev != NULL)
-                aux->prev->next = new_node;
-            aux->prev = new_node;
-            new_node->next = aux;
-            if(aux == *head)
-                *head = new_node;
-        }
-        else { // adds new_node as aux->next
-            new_node->next = aux->next;
-            if(aux->next != NULL)
-                aux->next->prev = new_node;
-            aux->next = new_node;
-            new_node->prev = aux;
+    }
+
+    if(f_score[aux->data] >= f_score[new_data]) { // adds new_node as aux->prev
+        new_node->prev = aux->prev;
+        if(aux->prev != NULL)
+            aux->prev->next = new_node;
+        aux->prev = new_node;
+        new_node->next = aux;
+        if(aux == *head) {
+            *head = new_node;
+            new_node->prev = NULL;
         }
     }
-    return new_node;
-}
-
-/** Pushes new_data based on it's f_score; the *head always ends with the lowest f_score.
- * Singly linked list. */
-static sl_list* sl_push_by_fscore(sl_list **head, node_data new_data, int f_score[]) {
-    sl_list *new_node = (sl_list*)malloc(sizeof(sl_list));
-    if(new_node==NULL)
-        return NULL;
-    new_node->data = new_data;
-    new_node->next = NULL;
-
-    if(*head == NULL) {
-        *head = new_node;
-        return new_node;
-    }
-
-    sl_list *aux = *head;
-    if(f_score[(*head)->data] >= f_score[new_data]) {
-        new_node->next = *head;
-        *head = new_node;
-        return new_node;
-    }
-
-    while (aux->next != NULL && f_score[aux->next->data] < f_score[new_data])
-            aux = aux->next;
-    if(aux->next == NULL) {
-        aux->next = new_node;
-    } else {
+    else { // adds new_node as aux->next
         new_node->next = aux->next;
+        if(aux->next != NULL)
+            aux->next->prev = new_node;
         aux->next = new_node;
+        new_node->prev = aux;
+        if(aux == *tail) {
+            *tail = new_node;
+            new_node->next = NULL;
+        }
     }
     return new_node;
 }

@@ -21,10 +21,11 @@ int main(int argc, char** argv) {
 
     if(result > 0)
         printf("Pathfinding was successful.\n");
-    else if(result == GOAL_NOT_FOUND)
+    else if(result == 0)
         printf("Pathfinding failed.\n");
+
     printf("Path cost: %d\nTime elapsed: %fs\n\n", result, ((double)(end - begin) / CLOCKS_PER_SEC));
-    
+
     if(result < 0)
         printerr(result);
 
