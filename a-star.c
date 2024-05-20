@@ -8,16 +8,17 @@
 typedef struct Map {
     dl_list *open_head, *open_tail;
     int size, start, goal, *came_from, *g_score, *f_score;
-    char *closedset, *openset, *grid;
+    char *grid, *closedset, *openset;
 } map;
 
 static int init_map(map *m, char filepath_in[]);
 static int alloc_map(map *m);
+static void free_map(map *m);
 static int lowest_f_score(map *m);
 static int h_cost(map *m, int current);
 static void neighbor_nodes(int neighbor[], int current, int n);
 static int reconstruct_path(map *m);
-static int write_map(char filepath_out[], map *m, int exit_status);
+static int write_map(map *m, char filepath_out[], int exit_status);
 static dl_list* dl_push_by_fscore(dl_list **head, dl_list **tail, node_data new_data, int f_score[]);
 
 
@@ -34,11 +35,13 @@ int a_star(char filepath_in[], char filepath_out[]) {
 
     while(m.open_head!=NULL) { // while open_head isn't empty
         current = lowest_f_score(&m); // current=lowest_f and open_head[current]=CLOSED
-        if(current < 0)
+        if(current < 0) {
+            free_map(&m);
             return LOW_F_ERR;
+        }
 
         if(current == m.goal)
-            return write_map(filepath_out, &m, GOAL_FOUND); // end program, successful return.
+            return write_map(&m, filepath_out, GOAL_FOUND); // end program, successful return.
 
         m.closedset[current] = CLOSED;
 
@@ -56,14 +59,16 @@ int a_star(char filepath_in[], char filepath_out[]) {
                 m.g_score[neighbor[i]] = tentative_g_score;
                 m.f_score[neighbor[i]] = m.g_score[neighbor[i]] + h_cost(&m, neighbor[i]);
                 if(m.openset[neighbor[i]] == NOT_IN_OPENSET) {
-                    if(dl_push_by_fscore(&(m.open_head), &(m.open_tail), neighbor[i], m.f_score) == NULL) // add neighbor[i] to openset
+                    if(dl_push_by_fscore(&(m.open_head), &(m.open_tail), neighbor[i], m.f_score) == NULL) {
+                        free_map(&m);
                         return PUSH_BY_F_ERR;
+                    }
                     m.openset[neighbor[i]] = IN_OPENSET; // add neighbor[i] to openset
                 }
             }
         }
     }
-    return write_map(filepath_out, &m, GOAL_NOT_FOUND);
+    return write_map(&m, filepath_out, GOAL_NOT_FOUND);
 }
 
 
@@ -76,11 +81,15 @@ static int init_map(map *m, char filepath_in[]) {
         return FILE_R_ERR;
 
     fscanf(in, "%d", &(m->size));
-    if(m->size < 4 || m->size > 46340)
+    if(m->size < 4 || m->size > 46340) {
+        fclose(in);
         return INPUT_ERR;
+    }
 
-    if(alloc_map(m) == ALLOC_ERR)
+    if(alloc_map(m) == ALLOC_ERR) {
+        fclose(in);
         return ALLOC_ERR;
+    }
 
     m->open_head = NULL;
     m->open_tail = NULL;
@@ -89,8 +98,11 @@ static int init_map(map *m, char filepath_in[]) {
 
     int i=0;
     while(!feof(in)) {
-        if(i > m->size*m->size)
+        if(i > m->size*m->size) {
+            fclose(in);
+            free_map(m);
             return INPUT_ERR;
+        }
         fscanf(in, "%c", &m->grid[i]);
 
         if(m->grid[i] == INVALID_INPUT)
@@ -108,16 +120,20 @@ static int init_map(map *m, char filepath_in[]) {
                 break;
             case START:
                 m->start = i;
-                if(dl_push_front(&(m->open_head), &(m->open_tail), i) == NULL) // marks the start position as open.
+                if(dl_push_front(&(m->open_head), &(m->open_tail), i) == NULL) {
+                    fclose(in);
+                    free_map(m);
                     return PUSH_FRONT_ERR;
-                m->openset[i] = IN_OPENSET;
+                }
+                m->openset[i] = IN_OPENSET; // marks the start position as open.
         }
         i++;
     }
-
-    if(i < m->size*m->size || m->start == NOT_SET || m->goal == NOT_SET || m->start == m->goal)
-        return INPUT_ERR;
     fclose(in);
+    if(i < m->size*m->size || m->start == NOT_SET || m->goal == NOT_SET || m->start == m->goal) {
+        free_map(m);
+        return INPUT_ERR;
+    }
     ///printf(" ended successfully.\n");
     return 0;
 }
@@ -132,24 +148,44 @@ static int alloc_map(map *m) {
         return ALLOC_ERR;
 
     m->g_score = (int*)malloc(m->size*m->size*sizeof(int));
-    if(m->g_score == NULL)
+    if(m->g_score == NULL) {
+        free(m->came_from);
         return ALLOC_ERR;
+    }
 
     m->f_score = (int*)malloc(m->size*m->size*sizeof(int));
-    if(m->f_score == NULL)
+    if(m->f_score == NULL) {
+        free(m->came_from);
+        free(m->g_score);
         return ALLOC_ERR;
-
-    m->closedset = (char*)calloc(m->size*m->size, sizeof(char));
-    if(m->closedset == NULL)
-        return ALLOC_ERR;
-
-    m->openset = (char*)calloc(m->size*m->size, sizeof(char));
-    if(m->closedset == NULL)
-        return ALLOC_ERR;
+    }
 
     m->grid = (char*)malloc(m->size*m->size*sizeof(char));
-    if(m->grid == NULL)
+    if(m->grid == NULL) {
+        free(m->came_from);
+        free(m->g_score);
+        free(m->f_score);
         return ALLOC_ERR;
+    }
+
+    m->closedset = (char*)calloc(m->size*m->size, sizeof(char));
+    if(m->closedset == NULL) {
+        free(m->came_from);
+        free(m->g_score);
+        free(m->f_score);
+        free(m->grid);
+        return ALLOC_ERR;
+    }
+
+    m->openset = (char*)calloc(m->size*m->size, sizeof(char));
+    if(m->openset == NULL) {
+        free(m->came_from);
+        free(m->g_score);
+        free(m->f_score);
+        free(m->grid);
+        free(m->closedset);
+        return ALLOC_ERR;
+    }
 
     ///printf(" ended successfully.\n");
     return 0;
@@ -161,9 +197,9 @@ static void free_map(map *m) {
     free(m->came_from);
     free(m->g_score);
     free(m->f_score);
+    free(m->grid);
     free(m->closedset);
     free(m->openset);
-    free(m->grid);
     while(m->open_head != NULL)
         free(dl_pop_front(&(m->open_head), &(m->open_tail)));
 }
@@ -223,11 +259,13 @@ static int lowest_f_score(map *m) {
 
 
 /** Writes the pathfinding cost and m->grid into a ".txt" file. */
-static int write_map(char filepath_out[], map *m, int exit_status) {
+static int write_map(map *m, char filepath_out[], int exit_status) {
     int i, cost = exit_status;
     FILE *out_file = fopen(filepath_out, "w");
-    if(out_file == NULL)
+    if(out_file == NULL) {
+        free_map(m);
         return FILE_W_ERR;
+    }
 
     if(exit_status == GOAL_FOUND)
         cost = reconstruct_path(m);
