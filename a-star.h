@@ -6,7 +6,7 @@ enum STATUS {
     START = 'O',
     GOAL = 'X',
     WALL = '#',
-    INVALID_INPUT = '\n',
+    INVALID_INPUT = 31,
     OUT_OF_BOUNDS = INF,
     NOT_SET = INF,
     OPEN = '\0',

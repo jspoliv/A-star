@@ -5,10 +5,10 @@
 
 #define numNeighbors 4
 
-typedef struct Map {
-    dl_list *open_head, *open_tail;
+typedef struct map {
+    dl_list open_list;
     int size, start, goal, *came_from, *g_score, *f_score;
-    char *grid, *closedset, *openset;
+    char *graph, *closedset, *openset;
 } map;
 
 static int init_map(map *m, char filepath_in[]);
@@ -19,11 +19,11 @@ static int h_cost(map *m, int current);
 static void neighbor_nodes(int neighbor[], int current, int n);
 static int reconstruct_path(map *m);
 static int write_map(map *m, char filepath_out[], int exit_status);
-static dl_list* dl_push_by_fscore(dl_list **head, dl_list **tail, node_data new_data, int f_score[]);
 
 
 int a_star(char filepath_in[], char filepath_out[]) {
     int i, tentative_g_score, current, neighbor[numNeighbors];
+    node_data neighbor_fscore;
     map m;
 
     i = init_map(&m, filepath_in);
@@ -31,9 +31,9 @@ int a_star(char filepath_in[], char filepath_out[]) {
         return i;
 
     m.g_score[m.start] = 0;
-    m.f_score[m.start] = m.g_score[m.start] + h_cost(&m, m.start);
+    m.f_score[m.start] = h_cost(&m, m.start); // + m.g_score[m.start], which is in this case is 0
 
-    while(m.open_head!=NULL) { // while open_head isn't empty
+    while(m.open_list.head != NULL) { // while open_head isn't empty
         current = lowest_f_score(&m); // current=lowest_f and open_head[current]=CLOSED
         if(current < 0) {
             free_map(&m);
@@ -47,10 +47,10 @@ int a_star(char filepath_in[], char filepath_out[]) {
 
         neighbor_nodes(neighbor, current, m.size);
         for(i=0; i<numNeighbors; i++) {
-            if(neighbor[i] == OUT_OF_BOUNDS || m.grid[neighbor[i]] == WALL) // ignores OUT_OF_BOUNDS positions and walls
+            if(neighbor[i] == OUT_OF_BOUNDS || m.graph[neighbor[i]] == WALL) // ignores OUT_OF_BOUNDS positions and walls
                 continue;
 
-            tentative_g_score = m.g_score[current] + m.grid[neighbor[i]];
+            tentative_g_score = m.g_score[current] + m.graph[neighbor[i]];
             if(m.closedset[neighbor[i]] == CLOSED && tentative_g_score>=m.g_score[neighbor[i]])
                 continue;
 
@@ -59,7 +59,9 @@ int a_star(char filepath_in[], char filepath_out[]) {
                 m.g_score[neighbor[i]] = tentative_g_score;
                 m.f_score[neighbor[i]] = m.g_score[neighbor[i]] + h_cost(&m, neighbor[i]);
                 if(m.openset[neighbor[i]] == NOT_IN_OPENSET) {
-                    if(dl_push_by_fscore(&(m.open_head), &(m.open_tail), neighbor[i], m.f_score) == NULL) {
+                    neighbor_fscore.value = neighbor[i];
+                    neighbor_fscore.priority = m.f_score[neighbor[i]];
+                    if(dl_push_priority(&(m.open_list), neighbor_fscore) == NULL) {
                         free_map(&m);
                         return PUSH_BY_F_ERR;
                     }
@@ -75,7 +77,6 @@ int a_star(char filepath_in[], char filepath_out[]) {
 /** Loads the input from filepath into the map.
  * @return Returns i<0 if it errors. */
 static int init_map(map *m, char filepath_in[]) {
-    ///printf("load()");
     FILE *in = fopen(filepath_in, "r");
     if(in == NULL)
         return FILE_R_ERR;
@@ -91,8 +92,8 @@ static int init_map(map *m, char filepath_in[]) {
         return ALLOC_ERR;
     }
 
-    m->open_head = NULL;
-    m->open_tail = NULL;
+    m->open_list.head = NULL;
+    //m->open_list.tail = NULL;  // never used
     m->start = NOT_SET;
     m->goal = NOT_SET;
 
@@ -103,9 +104,9 @@ static int init_map(map *m, char filepath_in[]) {
             free_map(m);
             return INPUT_ERR;
         }
-        fscanf(in, "%c", &m->grid[i]);
+        fscanf(in, "%c", &m->graph[i]);
 
-        if(m->grid[i] == INVALID_INPUT)
+        if(m->graph[i] <= INVALID_INPUT)
             continue;
 
         //m->closedset[i] = OPEN; // redundant if using calloc
@@ -114,13 +115,16 @@ static int init_map(map *m, char filepath_in[]) {
         m->g_score[i] = INF;
         m->f_score[i] = INF;
 
-        switch(m->grid[i]) {
+        switch(m->graph[i]) {
             case GOAL:
                 m->goal = i;
                 break;
             case START:
                 m->start = i;
-                if(dl_push_front(&(m->open_head), &(m->open_tail), i) == NULL) {
+                node_data node;
+                //node.priority = 0; // never used
+                node.value = i;
+                if(dl_push_priority(&(m->open_list), node) == NULL) {
                     fclose(in);
                     free_map(m);
                     return PUSH_FRONT_ERR;
@@ -134,15 +138,12 @@ static int init_map(map *m, char filepath_in[]) {
         free_map(m);
         return INPUT_ERR;
     }
-    ///printf(" ended successfully.\n");
     return 0;
 }
 
 
 /** Allocates the pointers in map. */
 static int alloc_map(map *m) {
-    ///printf("\nn:%i n*n:%i\nalloc_map()", m->size, m->size*m->size);
-
     m->came_from = (int*)malloc(m->size*m->size*sizeof(int));
     if(m->came_from == NULL)
         return ALLOC_ERR;
@@ -160,8 +161,8 @@ static int alloc_map(map *m) {
         return ALLOC_ERR;
     }
 
-    m->grid = (char*)malloc(m->size*m->size*sizeof(char));
-    if(m->grid == NULL) {
+    m->graph = (char*)malloc(m->size*m->size*sizeof(char));
+    if(m->graph == NULL) {
         free(m->came_from);
         free(m->g_score);
         free(m->f_score);
@@ -173,7 +174,7 @@ static int alloc_map(map *m) {
         free(m->came_from);
         free(m->g_score);
         free(m->f_score);
-        free(m->grid);
+        free(m->graph);
         return ALLOC_ERR;
     }
 
@@ -182,12 +183,10 @@ static int alloc_map(map *m) {
         free(m->came_from);
         free(m->g_score);
         free(m->f_score);
-        free(m->grid);
+        free(m->graph);
         free(m->closedset);
         return ALLOC_ERR;
     }
-
-    ///printf(" ended successfully.\n");
     return 0;
 }
 
@@ -197,26 +196,24 @@ static void free_map(map *m) {
     free(m->came_from);
     free(m->g_score);
     free(m->f_score);
-    free(m->grid);
+    free(m->graph);
     free(m->closedset);
     free(m->openset);
-    while(m->open_head != NULL)
-        free(dl_pop_front(&(m->open_head), &(m->open_tail)));
+    while(m->open_list.head != NULL)
+        free(dl_pop_front(&(m->open_list)));
 }
 
 
 /** Returns the cost from getting from the start to the goal while marking the path. */
 static int reconstruct_path(map *m) {
-    ///printf("reconstruct_path()");
     int sum = 0, current_node;
-    sum += m->grid[m->goal];
+    sum += m->graph[m->goal];
     current_node = m->came_from[m->goal];
     while(m->came_from[current_node] != NOT_SET) {
-        sum += m->grid[current_node];
-        m->grid[current_node]='*';
+        sum += m->graph[current_node];
+        m->graph[current_node]='*';
         current_node = m->came_from[current_node];
     }
-    ///printf(" ended sucessfully.\n");
     return sum;
 }
 
@@ -224,7 +221,7 @@ static int reconstruct_path(map *m) {
 /** Receives the position of the current node's neighbors.
  * @param neighbor array that receives the positions around current.
  * @param current position of the current node.
- * @param n N value of the NxN map. */
+ * @param n N value of the NxN graph. */
 static void neighbor_nodes(int neighbor[], int current, int n) {
     neighbor[0] = current-n>=0 ? current-n : OUT_OF_BOUNDS; // Same column, one line above
     neighbor[1] = current-1>=0 && (current-1)/n == current/n ? current-1 : OUT_OF_BOUNDS; // Same line, one column to the left
@@ -248,17 +245,17 @@ static int h_cost(map *m, int current) {
 
 /** Returns the position with the lowest f_score in open_head; removes that position from open_head */
 static int lowest_f_score(map *m) {
-    dl_list *aux = dl_pop_front(&(m->open_head), &(m->open_tail));
+    dl_node *aux = dl_pop_front(&(m->open_list));
     if(aux == NULL)
         return LOW_F_ERR;
-    int lowest = aux->data;
+    int lowest = aux->data.value;
     m->openset[lowest] = CLOSED;
     free(aux);
     return lowest;
 }
 
 
-/** Writes the pathfinding cost and m->grid into a ".txt" file. */
+/** Writes the pathfinding cost and m->graph into a ".txt" file. */
 static int write_map(map *m, char filepath_out[], int exit_status) {
     int i, cost = exit_status;
     FILE *out_file = fopen(filepath_out, "w");
@@ -275,7 +272,7 @@ static int write_map(map *m, char filepath_out[], int exit_status) {
         if((i%m->size)==0) {
             fprintf(out_file, "\n");
         }
-        fprintf(out_file, "%c", m->grid[i]);
+        fprintf(out_file, "%c", m->graph[i]);
     }
     fclose(out_file);
     free_map(m);
@@ -306,59 +303,4 @@ void printerr(err_e err_no) {
         case LOW_F_ERR:
             printf("\nError: lowest_fscore() failed.\n\n");
     }
-}
-
-
-/** Pushes new_data based on it's f_score; the *head always ends with the lowest f_score.
- * Doubly linked list */
-static dl_list* dl_push_by_fscore(dl_list **head, dl_list **tail, node_data new_data, int f_score[]) {
-    dl_list *new_node = (dl_list*)malloc(sizeof(dl_list)), *aux;
-    if(new_node == NULL)
-        return NULL;
-
-    new_node->data = new_data;
-
-    if(*head == NULL) {
-        *head = new_node;
-        *tail = new_node;
-        new_node->prev = NULL;
-        new_node->next = NULL;
-        return new_node;
-    }
-
-    // finds which of head->data or tail->data is closer to new_data
-    if(abs(f_score[(*head)->data]-f_score[new_data]) > abs(f_score[(*tail)->data]-f_score[new_data])) {
-        aux = *tail;
-        while(aux->prev != NULL && f_score[aux->data] > f_score[new_data])
-            aux = aux->prev;
-    }
-    else {
-        aux = *head;
-        while(aux->next != NULL && f_score[aux->data] < f_score[new_data])
-            aux = aux->next;
-    }
-
-    if(f_score[aux->data] >= f_score[new_data]) { // adds new_node as aux->prev
-        new_node->prev = aux->prev;
-        if(aux->prev != NULL)
-            aux->prev->next = new_node;
-        aux->prev = new_node;
-        new_node->next = aux;
-        if(aux == *head) {
-            *head = new_node;
-            new_node->prev = NULL;
-        }
-    }
-    else { // adds new_node as aux->next
-        new_node->next = aux->next;
-        if(aux->next != NULL)
-            aux->next->prev = new_node;
-        aux->next = new_node;
-        new_node->prev = aux;
-        if(aux == *tail) {
-            *tail = new_node;
-            new_node->next = NULL;
-        }
-    }
-    return new_node;
 }
