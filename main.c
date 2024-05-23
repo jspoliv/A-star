@@ -3,8 +3,8 @@
 #include <time.h>
 #include "a-star.h"
 
-#define file1 "entrada100.txt"
-#define file2 "saida.txt"
+#define file1 "test/input.txt"
+#define file2 "test/output.txt"
 
 int main(int argc, char** argv) {
     clock_t begin, end;

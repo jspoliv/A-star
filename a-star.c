@@ -1,12 +1,12 @@
 #include <stdio.h>
 #include <stdlib.h>
-#include "list.h"
 #include "a-star.h"
+#include "heap.h"
 
 #define numNeighbors 4
 
 typedef struct map {
-    dl_list open_list;
+    heap_t *queue;
     int size, start, goal, *came_from, *g_score, *f_score;
     char *graph, *closedset, *openset;
 } map;
@@ -23,7 +23,6 @@ static int write_map(map *m, char filepath_out[], int exit_status);
 
 int a_star(char filepath_in[], char filepath_out[]) {
     int i, tentative_g_score, current, neighbor[numNeighbors];
-    node_data neighbor_fscore;
     map m;
 
     i = init_map(&m, filepath_in);
@@ -33,7 +32,7 @@ int a_star(char filepath_in[], char filepath_out[]) {
     m.g_score[m.start] = 0;
     m.f_score[m.start] = h_cost(&m, m.start); // + m.g_score[m.start], which is in this case is 0
 
-    while(m.open_list.head != NULL) { // while open_head isn't empty
+    while(m.queue->len > 0) { // while the queue isn't empty
         current = lowest_f_score(&m); // current=lowest_f and open_head[current]=CLOSED
         if(current < 0) {
             free_map(&m);
@@ -59,11 +58,9 @@ int a_star(char filepath_in[], char filepath_out[]) {
                 m.g_score[neighbor[i]] = tentative_g_score;
                 m.f_score[neighbor[i]] = m.g_score[neighbor[i]] + h_cost(&m, neighbor[i]);
                 if(m.openset[neighbor[i]] == NOT_IN_OPENSET) {
-                    neighbor_fscore.value = neighbor[i];
-                    neighbor_fscore.priority = m.f_score[neighbor[i]];
-                    if(dl_push_priority(&(m.open_list), neighbor_fscore) == NULL) {
-                        free_map(&m);
-                        return PUSH_BY_F_ERR;
+                    push(m.queue, m.f_score[neighbor[i]], neighbor[i]);
+                    if(push(m.queue, m.f_score[neighbor[i]], neighbor[i]) < 0) {
+                        return PUSH_ERR;
                     }
                     m.openset[neighbor[i]] = IN_OPENSET; // add neighbor[i] to openset
                 }
@@ -92,8 +89,6 @@ static int init_map(map *m, char filepath_in[]) {
         return ALLOC_ERR;
     }
 
-    m->open_list.head = NULL;
-    //m->open_list.tail = NULL;  // never used
     m->start = NOT_SET;
     m->goal = NOT_SET;
 
@@ -109,8 +104,6 @@ static int init_map(map *m, char filepath_in[]) {
         if(m->graph[i] <= INVALID_INPUT)
             continue;
 
-        //m->closedset[i] = OPEN; // redundant if using calloc
-        //m->openset[i] = NOT_IN_OPENSET; // redundant if using calloc
         m->came_from[i] = NOT_SET;
         m->g_score[i] = INF;
         m->f_score[i] = INF;
@@ -121,13 +114,8 @@ static int init_map(map *m, char filepath_in[]) {
                 break;
             case START:
                 m->start = i;
-                node_data node;
-                //node.priority = 0; // never used
-                node.value = i;
-                if(dl_push_priority(&(m->open_list), node) == NULL) {
-                    fclose(in);
-                    free_map(m);
-                    return PUSH_FRONT_ERR;
+                if(push(m->queue, 0, i) < 0) {
+                    return PUSH_ERR;
                 }
                 m->openset[i] = IN_OPENSET; // marks the start position as open.
         }
@@ -144,18 +132,36 @@ static int init_map(map *m, char filepath_in[]) {
 
 /** Allocates the pointers in map. */
 static int alloc_map(map *m) {
-    m->came_from = (int*)malloc(m->size*m->size*sizeof(int));
-    if(m->came_from == NULL)
+    m->queue = (heap_t*)calloc(1, sizeof(heap_t));
+    if(m->queue == NULL)
         return ALLOC_ERR;
+
+    m->queue->nodes = (node_t*)malloc(1.5*m->size*sizeof(node_t));
+    m->queue->size = 1.5*m->size;
+    if(m->queue->nodes == NULL) {
+        free(m->queue);
+        return ALLOC_ERR;
+    }
+
+    m->came_from = (int*)malloc(m->size*m->size*sizeof(int));
+    if(m->came_from == NULL) {
+        free(m->queue->nodes);
+        free(m->queue);
+        return ALLOC_ERR;
+    }
 
     m->g_score = (int*)malloc(m->size*m->size*sizeof(int));
     if(m->g_score == NULL) {
+        free(m->queue->nodes);
+        free(m->queue);
         free(m->came_from);
         return ALLOC_ERR;
     }
 
     m->f_score = (int*)malloc(m->size*m->size*sizeof(int));
     if(m->f_score == NULL) {
+        free(m->queue->nodes);
+        free(m->queue);
         free(m->came_from);
         free(m->g_score);
         return ALLOC_ERR;
@@ -163,6 +169,8 @@ static int alloc_map(map *m) {
 
     m->graph = (char*)malloc(m->size*m->size*sizeof(char));
     if(m->graph == NULL) {
+        free(m->queue->nodes);
+        free(m->queue);
         free(m->came_from);
         free(m->g_score);
         free(m->f_score);
@@ -171,6 +179,8 @@ static int alloc_map(map *m) {
 
     m->closedset = (char*)calloc(m->size*m->size, sizeof(char));
     if(m->closedset == NULL) {
+        free(m->queue->nodes);
+        free(m->queue);
         free(m->came_from);
         free(m->g_score);
         free(m->f_score);
@@ -180,6 +190,8 @@ static int alloc_map(map *m) {
 
     m->openset = (char*)calloc(m->size*m->size, sizeof(char));
     if(m->openset == NULL) {
+        free(m->queue->nodes);
+        free(m->queue);
         free(m->came_from);
         free(m->g_score);
         free(m->f_score);
@@ -199,8 +211,8 @@ static void free_map(map *m) {
     free(m->graph);
     free(m->closedset);
     free(m->openset);
-    while(m->open_list.head != NULL)
-        free(dl_pop_front(&(m->open_list)));
+    free(m->queue->nodes);
+    free(m->queue);
 }
 
 
@@ -245,12 +257,10 @@ static int h_cost(map *m, int current) {
 
 /** Returns the position with the lowest f_score in open_head; removes that position from open_head */
 static int lowest_f_score(map *m) {
-    dl_node *aux = dl_pop_front(&(m->open_list));
-    if(aux == NULL)
+    int lowest = pop(m->queue);
+    if(lowest < 0)
         return LOW_F_ERR;
-    int lowest = aux->data.value;
     m->openset[lowest] = CLOSED;
-    free(aux);
     return lowest;
 }
 
@@ -294,11 +304,8 @@ void printerr(err_e err_no) {
         case ALLOC_ERR:
             printf("\nError: Memory allocation failed.\n\n");
             break;
-        case PUSH_FRONT_ERR:
-            printf("\nError: push_front() failed.\n\n");
-            break;
-        case PUSH_BY_F_ERR:
-            printf("\nError: push_by_f_score() failed.\n\n");
+        case PUSH_ERR:
+            printf("\nError: push() failed.\n\n");
             break;
         case LOW_F_ERR:
             printf("\nError: lowest_fscore() failed.\n\n");
