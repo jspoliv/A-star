@@ -4,7 +4,7 @@
 
 
 int push(heap_t *h, int priority, int data) {
-    /* if (h->len + 1 >= h->size) {             // fails for len > m->size*1.5
+    /* if (h->len + 1 >= h->size) {             // can fail unless size == n^2
         h->size = h->size ? h->size*1.1 : 100;
         h->nodes = (node_t*)realloc(h->nodes, h->size*sizeof(node_t));
         if(h->nodes == NULL)

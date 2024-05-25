@@ -127,8 +127,8 @@ static int alloc_map(map *m) {
     if(m->queue == NULL)
         return ALLOC_ERR;
 
-    m->queue->nodes = (node_t*)malloc(1.5*m->size*sizeof(node_t)); // size could be insufficient in specific scenarios
-    m->queue->size = 1.5*m->size;
+    m->queue->nodes = (node_t*)malloc(m->size*m->size*sizeof(node_t));
+    m->queue->size = m->size*m->size; // n^2 is overkill, but n*1.5 could be insufficient in specific scenarios
     if(m->queue->nodes == NULL) {
         free(m->queue);
         return ALLOC_ERR;
