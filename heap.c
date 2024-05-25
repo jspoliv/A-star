@@ -4,12 +4,12 @@
 
 
 int push(heap_t *h, int priority, int data) {
-    if (h->len + 1 >= h->size) {
+    /* if (h->len + 1 >= h->size) {             // fails for len > m->size*1.5
         h->size = h->size ? h->size*1.1 : 100;
         h->nodes = (node_t*)realloc(h->nodes, h->size*sizeof(node_t));
         if(h->nodes == NULL)
             return -1;
-    }
+    } */
     int i = h->len + 1;
     int j = i / 2;
     while (i > 1 && h->nodes[j].priority > priority) {
@@ -26,9 +26,9 @@ int push(heap_t *h, int priority, int data) {
 
 int pop(heap_t *h) {
     int i, j, k;
-    if (!h->len) {
+    /* if (!h->len) {  // impossible due to only being called right after while(m.queue->len > 0)
         return -1;
-    }
+    } */
     int data = h->nodes[1].data;
     
     h->nodes[1] = h->nodes[h->len];

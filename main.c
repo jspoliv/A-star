@@ -24,7 +24,7 @@ int main(int argc, char** argv) {
     else if(result == 0)
         printf("The path was blocked.\n");
 
-    printf("Path cost: %d\nTime elapsed: %fs\n\n", result, ((double)(end - begin) / CLOCKS_PER_SEC));
+    printf("Path cost: %d\nTime elapsed: %fs\n", result, ((double)(end - begin) / CLOCKS_PER_SEC));
 
     if(result < 0)
         printerr(result);
