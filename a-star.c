@@ -14,7 +14,6 @@ typedef struct map {
 static int init_map(map *m, char filepath_in[]);
 static int alloc_map(map *m);
 static void free_map(map *m);
-static int lowest_f_score(map *m);
 static int h_cost(map *m, int current);
 static void neighbor_nodes(int neighbor[], int current, int n);
 static int reconstruct_path(map *m);
@@ -33,15 +32,12 @@ int a_star(char filepath_in[], char filepath_out[]) {
     m.f_score[m.start] = h_cost(&m, m.start); // + m.g_score[m.start], which is in this case is 0
 
     while(m.queue->len > 0) { // while the queue isn't empty
-        current = lowest_f_score(&m);
-        /* if(current < 0) {     // impossible due to only being called right after while(m.queue->len > 0)
-            free_map(&m);
-            return LOW_F_ERR;
-        } */
+        current = pop(m.queue); //  current = position with the lowest f_score
 
         if(current == m.goal)
             return write_map(&m, filepath_out, GOAL_FOUND); // end program, successful return.
 
+        m.openset[current] = NOT_IN_OPENSET;
         m.closedset[current] = CLOSED;
 
         neighbor_nodes(neighbor, current, m.size);
@@ -59,9 +55,6 @@ int a_star(char filepath_in[], char filepath_out[]) {
                 m.f_score[neighbor[i]] = m.g_score[neighbor[i]] + h_cost(&m, neighbor[i]);
                 if(m.openset[neighbor[i]] == NOT_IN_OPENSET) {
                     push(m.queue, m.f_score[neighbor[i]], neighbor[i]); // fails for len > m->size*1.5
-                    /* if(push(m.queue, m.f_score[neighbor[i]], neighbor[i]) < 0) {
-                        return PUSH_ERR;
-                    } */
                     m.openset[neighbor[i]] = IN_OPENSET; // add neighbor[i] to openset
                 }
             }
@@ -79,7 +72,7 @@ static int init_map(map *m, char filepath_in[]) {
         return FILE_R_ERR;
 
     fscanf(in, "%d", &(m->size));
-    if(m->size < 4 || m->size > 46340) {
+    if(m->size < 4 || m->size > 15000) {
         fclose(in);
         return INPUT_ERR;
     }
@@ -103,6 +96,8 @@ static int init_map(map *m, char filepath_in[]) {
         /* if(m->graph[i] <= INVALID_INPUT) // preprocessed input
             continue; */
 
+        // m->openset = NOT_IN_OPENSET;     initialized through calloc()
+        // m->closedset = OPEN;             initialized through calloc()
         m->came_from[i] = NOT_SET;
         m->g_score[i] = INF;
         m->f_score[i] = INF;
@@ -219,7 +214,7 @@ static int reconstruct_path(map *m) {
     current_node = m->came_from[m->goal];
     while(m->came_from[current_node] != NOT_SET) {
         sum += m->graph[current_node];
-        m->graph[current_node]='*';
+        m->graph[current_node] = '*';
         current_node = m->came_from[current_node];
     }
     return sum;
@@ -231,16 +226,16 @@ static int reconstruct_path(map *m) {
  * @param current position of the current node.
  * @param n N value of the NxN graph. */
 static void neighbor_nodes(int neighbor[], int current, int n) {
-    neighbor[0] = current-n>=0 ? current-n : OUT_OF_BOUNDS; // Same column, one line above
-    neighbor[1] = current-1>=0 && (current-1)/n == current/n ? current-1 : OUT_OF_BOUNDS; // Same line, one column to the left
-    neighbor[2] = current+1<n*n && (current+1)/n == current/n ? current+1 : OUT_OF_BOUNDS; // Same line, one column to the right
-    neighbor[3] = current+n<n*n ? current+n : OUT_OF_BOUNDS; // Same column, one line bellow
+    neighbor[0] = current-n >= 0 ? current-n : OUT_OF_BOUNDS; // Same column, one line above
+    neighbor[1] = current-1 >= 0 && (current-1)/n == current/n ? current-1 : OUT_OF_BOUNDS; // Same line, one column to the left
+    neighbor[2] = current+1 < n*n && (current+1)/n == current/n ? current+1 : OUT_OF_BOUNDS; // Same line, one column to the right
+    neighbor[3] = current+n < n*n ? current+n : OUT_OF_BOUNDS; // Same column, one line bellow
 }
 
 
 /** Manhattan distance from [current] to [goal]. */
 static int h_cost(map *m, int current) {
-    return(abs((m->goal/m->size)-(current/m->size))+abs((m->goal%m->size)-(current%m->size)));
+    return (abs((m->goal/m->size)-(current/m->size)) + abs((m->goal%m->size)-(current%m->size)));
     /* extended version of the return() above.
     int cx, cy, gx, gy; // transforms a position in a N^2 sized array into a [x,y] pair in a NxN matrix
     cx=(current/n); // current's x
@@ -251,19 +246,9 @@ static int h_cost(map *m, int current) {
 }
 
 
-/** Returns the position with the lowest f_score in open_head; removes that position from open_head */
-static int lowest_f_score(map *m) {
-    int lowest = pop(m->queue);
-    /* if(lowest < 0)               // impossible due to only being called right after while(m.queue->len > 0)
-        return LOW_F_ERR; */
-    m->openset[lowest] = CLOSED;
-    return lowest;
-}
-
-
 /** Writes the pathfinding cost and m->graph into a ".txt" file. */
 static int write_map(map *m, char filepath_out[], int exit_status) {
-    int i, cost = exit_status;
+    int cost = exit_status;
     FILE *out_file = fopen(filepath_out, "w");
     if(out_file == NULL) {
         free_map(m);
@@ -274,13 +259,9 @@ static int write_map(map *m, char filepath_out[], int exit_status) {
         cost = reconstruct_path(m);
 
     fprintf(out_file, "%d", cost);
-    for(i=0; i < m->size*m->size; i++) {
-        if((i%m->size)==0) {
-            fprintf(out_file, "\n");
-        }
-        fprintf(out_file, "%c", m->graph[i]);
-    }
+    fputs(m->graph, out_file);
     fclose(out_file);
+
     free_map(m);
     return cost;
 }
